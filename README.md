@@ -1,5 +1,7 @@
 # Extrator de Currículos com IA
 
+Projeto desafio do curso de Full Stack.
+
 Este projeto extrai dados de currículos (PDF) usando a IA do Google Gemini e salva no Supabase.
 
 ## Configuração
