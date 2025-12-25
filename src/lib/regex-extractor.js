@@ -25,7 +25,6 @@ export function extractWithRegex(text) {
         if (m2) return m2[0].toLowerCase();
 
         // 2. Fallback: Find '@' and expand outwards (Best for extremely fragmented text)
-        // Increased radius to 60 to catch long fragmented emails
         const atIndex = cleanText.indexOf('@');
         if (atIndex !== -1) {
             const start = Math.max(0, atIndex - 60);
@@ -40,14 +39,22 @@ export function extractWithRegex(text) {
     const rawEmail = getEmail();
     if (rawEmail) {
         let email = rawEmail;
-        // Expanded TLD detection including .com.br and others
-        const tldMatch = email.match(/\.(com\.br|com|br|net|org|edu|gov|me|co|io|tech|info)/i);
-        if (tldMatch) email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
+        const atPos = email.indexOf('@');
+
+        // ONLY cut TLDs after the @ symbol to avoid cutting nicknames/prefixes (e.g., .contato@...)
+        if (atPos !== -1) {
+            const domain = email.substring(atPos);
+            const tldMatch = domain.match(/\.(com\.br|com|br|net|org|edu|gov|me|co|io|tech|info)/i);
+            if (tldMatch) {
+                email = email.substring(0, atPos) + domain.substring(0, domain.indexOf(tldMatch[0]) + tldMatch[0].length);
+            }
+        }
 
         // Clean fragment prefixes (CEPs, results, contact labels)
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link)[:\s\-_]*/i, '');
-        // Remove long digit sequences (like partial ZIP codes or PDF noise) at the start
-        email = email.replace(/^[a-z0-9]{5,20}(?=[a-z])/, '');
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|z-|a\.)[:\s\-_]*/i, '');
+        // Remove leading random fragments (like 1-2 letters followed by dot/dash)
+        email = email.replace(/^[a-z]{1,2}[.\-_]/i, '');
+
         result.email = email.replace(/^[.,\/n_-]+/, '').replace(/[.,\/_-]+$/, '');
     }
 
