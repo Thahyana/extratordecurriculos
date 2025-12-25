@@ -10,17 +10,15 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // Email pattern
-    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+    // Email pattern - more robust
+    const emailRegex = /[a-zA-Z0-9._%+!$&'*-/=?^`{|}~-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
     const emailMatch = text.match(emailRegex);
     if (emailMatch && emailMatch[0]) {
-        result.email = emailMatch[0];
+        result.email = emailMatch[0].toLowerCase();
     }
 
-    // Phone pattern (Brazilian formats) - Enforce stricter rules to avoid dates
-    // 1. Must have (DDD) OR start with +55 OR start with a clearly non-year prefix
-    // 2. Reject simple YYYY-YYYY patterns
-    const phoneRegex = /(?:(?:\+|00)?55\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\s?)?[2-9]\d{3})[-\s]?(\d{4}))/g;
+    // Phone pattern (Brazilian formats) - improved to catch more variations
+    const phoneRegex = /(?:\+?55\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\s?)?[2-9]\d{3})[-\s]?(\d{4}))/g;
 
     let bestPhone = null;
     const phoneMatches = [...text.matchAll(phoneRegex)];
