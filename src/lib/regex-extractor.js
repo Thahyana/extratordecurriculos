@@ -45,61 +45,62 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME (Advanced cleaning to remove addresses/professional titles) ---
-    const nameRawLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
-    const stopWordsForName = [
+    // --- NAME (Resilient Cleaning & Target Search) ---
+    const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
+    const noiseWords = [
         'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'ANALISTA', 'TECNICO',
         'FORTALEZA', 'MACEIO', 'BRASIL', 'SAO PAULO', 'RIO DE JANEIRO', 'CEARA', 'CEARÁ',
         'CURRICULO', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
         'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'UNIVERSIDADE', 'FACULDADE', 'SCHOOL',
         'ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AV.', 'BAIRRO', 'CEP:', 'JUAZEIRO',
-        'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO'
+        'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:'
     ];
 
-    let finalNameParts = [];
-    for (let i = 0; i < Math.min(8, nameRawLines.length); i++) {
-        let line = nameRawLines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo|profissional)[:\s\-]*/i, '').trim();
+    let candidates = [];
+    for (let i = 0; i < Math.min(15, nameLines.length); i++) {
+        let line = nameLines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo|profissional)[:\s\-]*/i, '').trim();
 
         if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http')) {
-            if (finalNameParts.length > 0) break;
+            if (candidates.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
 
-        // 1. Check for stop words and cut line immediately
-        let cutAtPos = -1;
-        for (const sw of stopWordsForName) {
+        // Find cut point (stop words or digits)
+        let cutPoint = -1;
+        for (const sw of noiseWords) {
             const idx = upper.indexOf(sw);
-            if (idx !== -1 && (cutAtPos === -1 || idx < cutAtPos)) {
-                cutAtPos = idx;
-            }
+            if (idx !== -1 && (cutPoint === -1 || idx < cutPoint)) cutPoint = idx;
         }
 
-        // 2. Also cut at first number if it looks like an address (e.g., house number or CEP)
         const firstDigit = line.search(/\d/);
-        if (firstDigit !== -1 && (cutAtPos === -1 || firstDigit < cutAtPos)) {
-            cutAtPos = firstDigit;
+        if (firstDigit !== -1 && (cutPoint === -1 || firstDigit < cutPoint)) cutPoint = firstDigit;
+
+        if (cutPoint !== -1) {
+            line = line.substring(0, cutPoint).trim().replace(/[,\-:;]+$/, '');
+            if (line.length > 3) {
+                candidates.push(line);
+                break; // Found name and hit noise -> we are done
+            }
+            // If noise is at the start and we haven't found a name, just skip this line
+            if (candidates.length > 0) break;
+            continue;
         }
 
-        if (cutAtPos !== -1) {
-            line = line.substring(0, cutAtPos).trim().replace(/[,\-:;]+$/, '');
-            if (line.length > 3) finalNameParts.push(line);
-            break; // Stop completely after a cut
-        }
-
+        // Validate if it looks like a name
         const words = line.split(/\s+/);
-        const capWeight = words.filter(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w)).length / words.length;
+        const capScore = words.filter(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w)).length / words.length;
 
-        if (capWeight > 0.6) {
-            finalNameParts.push(line);
-        } else if (finalNameParts.length > 0) {
+        if (capScore > 0.6) {
+            candidates.push(line);
+        } else if (candidates.length > 0) {
             break;
         }
     }
 
-    if (finalNameParts.length > 0) {
-        result.nome = finalNameParts.join(' ').trim();
+    if (candidates.length > 0) {
+        result.nome = candidates.join(' ').trim();
     }
 
     return result;
