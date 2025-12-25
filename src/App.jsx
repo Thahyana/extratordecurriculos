@@ -83,22 +83,53 @@ function App() {
       // 2. Extract Data with Gemini
       const extractedData = await extractResumeData(text, geminiKey)
 
-      // 3. Save to Supabase
-      const { data, error: dbError } = await supabase
-        .from('candidatos')
-        .insert([
-          {
+      // 3. Save to Supabase (or fallback to local state if not configured)
+      let newCandidate = null
+
+      const hasSupabase = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+
+      if (!hasSupabase) {
+        console.warn('Supabase não configurado. Executando em modo offline (apenas visualização).')
+        newCandidate = {
+          id: `temp-${Date.now()}`,
+          created_at: new Date().toISOString(),
+          nome: extractedData.nome,
+          email: extractedData.email,
+          telefone: extractedData.telefone
+        }
+      } else {
+
+        try {
+          const { data, error: dbError } = await supabase
+            .from('candidatos')
+            .insert([
+              {
+                nome: extractedData.nome,
+                email: extractedData.email,
+                telefone: extractedData.telefone
+              }
+            ])
+            .select()
+
+          if (dbError) throw dbError
+          newCandidate = data[0]
+        } catch (dbErr) {
+          console.error("Falha ao salvar no Supabase (ignorando e usando modo local):", dbErr)
+          // Fallback if Supabase call fails completely (e.g. client misconfiguration)
+          newCandidate = {
+            id: `local-error-${Date.now()}`,
+            created_at: new Date().toISOString(),
             nome: extractedData.nome,
             email: extractedData.email,
             telefone: extractedData.telefone
           }
-        ])
-        .select()
-
-      if (dbError) throw dbError
+        }
+      }
 
       // 4. Update UI
-      setCandidates([data[0], ...candidates])
+      if (newCandidate) {
+        setCandidates([newCandidate, ...candidates])
+      }
       setFile(null)
       // Reset file input manually if needed
       document.getElementById('file-upload').value = ''
@@ -156,13 +187,20 @@ function App() {
         <header className="flex items-center justify-between mb-10">
           <div>
             <h1 className="title">Extrator de Currículos</h1>
-            <p className="text-secondary opacity-80">Extraia dados automaticamente com IA</p>
           </div>
           <div className="flex gap-3">
-
-            <button onClick={toggleTheme} className="btn btn-outline p-2 rounded-full" title="Alternar Tema">
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
+            <label className="theme-switch" title="Alternar Tema">
+              <input
+                type="checkbox"
+                checked={theme === 'dark'}
+                onChange={toggleTheme}
+              />
+              <span className="switch-track">
+                <span className="switch-thumb">
+                  {theme === 'light' ? <Sun size={14} className="switch-icon" /> : <Moon size={14} className="switch-icon" />}
+                </span>
+              </span>
+            </label>
           </div>
         </header>
 

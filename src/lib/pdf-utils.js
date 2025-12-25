@@ -20,7 +20,7 @@ export async function extractTextFromPDF(file) {
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map((item) => item.str).join(" ");
+            const pageText = textContent.items.map((item) => item.str).join("\n");
             fullText += pageText + "\n";
         }
 

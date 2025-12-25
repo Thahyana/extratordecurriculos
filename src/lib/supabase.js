@@ -10,8 +10,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   // Fallback client to prevent app crash on load
   supabaseClient = {
     from: () => ({
-      select: () => Promise.resolve({ data: [], error: { message: 'Supabase não configurado corretamente. Verifique as chaves de API.' } }),
-      insert: () => Promise.resolve({ data: [], error: { message: 'Supabase não configurado corretamente.' } }),
+      select: () => ({
+        order: () => Promise.resolve({ data: [], error: { message: 'Supabase não configurado corretamente. Verifique as chaves de API.' } }),
+        then: (resolve) => resolve({ data: [], error: { message: 'Supabase não configurado corretamente. Verifique as chaves de API.' } })
+      }),
+      insert: () => ({
+        select: () => Promise.resolve({ data: [], error: { message: 'Supabase não configurado corretamente. Verifique as chaves de API.' } })
+      }),
       delete: () => ({
         match: () => Promise.resolve({ error: { message: 'Supabase não configurado corretamente.' } }),
         in: () => Promise.resolve({ error: { message: 'Supabase não configurado corretamente.' } })

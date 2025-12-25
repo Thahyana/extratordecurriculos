@@ -17,11 +17,27 @@ export function extractWithRegex(text) {
         result.email = emailMatch[0];
     }
 
-    // Phone pattern (Brazilian formats)
-    const phoneRegex = /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?\d{4,5}[-\s]?\d{4}/g;
-    const phoneMatch = text.match(phoneRegex);
-    if (phoneMatch && phoneMatch[0]) {
-        result.telefone = phoneMatch[0].trim();
+    // Phone pattern (Brazilian formats) - Enforce stricter rules to avoid dates
+    // 1. Must have (DDD) OR start with +55 OR start with a clearly non-year prefix
+    // 2. Reject simple YYYY-YYYY patterns
+    const phoneRegex = /(?:(?:\+|00)?55\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\s?)?[2-9]\d{3})[-\s]?(\d{4}))/g;
+
+    let bestPhone = null;
+    const phoneMatches = [...text.matchAll(phoneRegex)];
+
+    for (const match of phoneMatches) {
+        const fullMatch = match[0];
+        const isDateRange = /^(19|20)\d{2}\s*-\s*(19|20)\d{2}$/.test(fullMatch);
+        if (!isDateRange) {
+            // Prefer matches with DDD
+            if (match[1] || !bestPhone) {
+                bestPhone = fullMatch.trim();
+            }
+        }
+    }
+
+    if (bestPhone) {
+        result.telefone = bestPhone;
     }
 
     // Name extraction - handle single-line PDFs
@@ -59,7 +75,9 @@ export function extractWithRegex(text) {
     console.log('Primeiras 20 linhas:');
     lines.slice(0, 20).forEach((line, i) => console.log(`  [${i}] "${line}"`));
 
-    // Process first 30 lines
+    // Process first 30 lines to find potential name candidates
+    const nameCandidates = [];
+
     for (let i = 0; i < Math.min(30, lines.length); i++) {
         const line = lines[i];
 
@@ -81,15 +99,25 @@ export function extractWithRegex(text) {
             'experiência', 'experience',
             'formação', 'education', 'escolaridade',
             'habilidades', 'skills', 'competências',
-            'idiomas', 'languages'
+            'idiomas', 'languages',
+            'perfil', 'profile', 'resumo', 'summary',
+            'profissional', 'professional',
+            'contato', 'contact', 'contact info',
+            'sobre', 'about',
+            'ensino', 'educação', 'colégio', 'faculdade', 'universidade', 'escola',
+            'prêmio', 'award', 'bolsa', 'scholarship'
         ];
 
         const lowerLine = line.toLowerCase();
         const hasSkipWord = skipWords.some(word => lowerLine.includes(word));
-        const hasPhone = /\(\d{2}\)\s*\d{4,5}[-\s]?\d{4}/.test(line);
 
-        if (hasSkipWord || hasPhone) {
-            console.log(`  [${i}] SKIP - palavra-chave/telefone detectado`);
+        // Relax digit check: allow single digit (noise/pagination), reject 2+ (dates/phones/address)
+        const digitCount = (line.match(/\d/g) || []).length;
+        const hasTooManyDigits = digitCount >= 2;
+        const hasPhone = /\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/.test(line);
+
+        if (hasSkipWord || hasPhone || hasTooManyDigits) {
+            console.log(`  [${i}] SKIP - palavra-chave/telefone/muitos números detectados`);
             continue;
         }
 
@@ -111,45 +139,108 @@ export function extractWithRegex(text) {
                 'brasília', 'salvador', 'curitiba', 'recife', 'porto', 'alegre',
                 'manaus', 'belém', 'goiânia', 'campinas', 'luís',
                 'maceió', 'natal', 'teresina', 'joão', 'pessoa', 'aracaju',
-                'florianópolis', 'vitória', 'cuiabá', 'campo', 'grande'
+                'florianópolis', 'vitória', 'cuiabá', 'campo', 'grande', 'ceará', 'brasil'
             ];
 
             // Collect words until we hit a city or state
             const validWords = [];
-            for (const word of capitalWords) {
-                const lower = word.toLowerCase();
 
-                // Stop at city names
-                if (cities.includes(lower)) {
-                    console.log(`  [${i}] Parando em cidade: ${word}`);
+            // Helper to process words from a line
+            const processWords = (words) => {
+                for (const word of words) {
+                    const lower = word.toLowerCase();
+                    // Stop at specific keywords that weren't caught by line skipping (e.g. inside a line)
+                    if ([
+                        'telefone', 'email', 'endereço', 'address',
+                        'engenharia', 'engineer', 'analista', 'analyst', 'desenvolvedor', 'developer',
+                        'mecânica', 'mechanic', 'elétrica', 'electric', 'técnico', 'technician',
+                        'auxiliar', 'assistant', 'estagiário', 'intern', 'gerente', 'manager'
+                    ].includes(lower)) break;
+
+
+                    if (cities.includes(lower)) break;
+
+                    // Stop at state abbreviations
+                    if (/^(CE|SP|RJ|MG|BA|PR|SC|RS|PE|PA|AM|RO|AC|AP|RR|TO|MA|PI|AL|SE|PB|RN|MT|MS|GO|DF)$/i.test(word)) break;
+
+                    // Add valid word (at least 2 chars)
+                    if (word.length >= 2) {
+                        validWords.push(word);
+                    }
+                }
+            };
+
+            processWords(capitalWords);
+
+            // Look ahead to next lines for split names
+            let nextLineIdx = i + 1;
+            while (validWords.length < 6 && nextLineIdx < Math.min(i + 3, lines.length)) {
+                const nextLine = lines[nextLineIdx];
+                const nextLineLower = nextLine.toLowerCase();
+                const nextHasSkipWord = skipWords.some(word => nextLineLower.includes(word));
+                const nextDigitCount = (nextLine.match(/\d/g) || []).length;
+                const nextHasTooManyDigits = nextDigitCount >= 2;
+                const nextHasPhone = /\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}/.test(nextLine);
+
+                if (nextHasSkipWord || nextHasTooManyDigits || nextHasPhone) {
                     break;
                 }
 
-                // Stop at state abbreviations
-                if (/^(CE|SP|RJ|MG|BA|PR|SC|RS|PE|PA|AM|RO|AC|AP|RR|TO|MA|PI|AL|SE|PB|RN|MT|MS|GO|DF)$/i.test(word)) {
-                    console.log(`  [${i}] Parando em estado: ${word}`);
+                let cleanNextLine = nextLine
+                    .replace(/^(nome|name|candidato|candidate):\s*/i, '')
+                    .replace(/^[-•]\s*/, '')
+                    .trim();
+
+                const nextCapitalWords = cleanNextLine.match(/[A-ZÀ-ÚÇ][a-zà-úçA-ZÀ-ÚÇ'\-]*/g);
+                if (nextCapitalWords && nextCapitalWords.length > 0) {
+                    processWords(nextCapitalWords);
+                } else {
                     break;
                 }
-
-                // Add valid word (at least 2 chars)
-                if (word.length >= 2) {
-                    validWords.push(word);
-                }
-
-                // Stop after collecting 2-5 words (typical name length)
-                if (validWords.length >= 5) {
-                    break;
-                }
+                nextLineIdx++;
             }
 
-            if (validWords.length >= 1) {
-                result.nome = validWords.join(' ');
-                console.log(`  [${i}] ✓✓✓ NOME ENCONTRADO: "${result.nome}"`);
-                break;
+
+            if (validWords.length >= 2) {
+                const candidateName = validWords.join(' ');
+
+                // Scoring system
+                let score = 0;
+
+                // Prefer candidates closer to the top (lines 0-5)
+                if (i <= 5) score += 5;
+                else if (i <= 10) score += 2;
+
+                // Prefer longer names (3+ parts), likely full name vs "Burton Davis"
+                if (validWords.length >= 3) score += 3;
+
+                // Check if next line contains strong career/contact signals
+                // This is a very strong indicator for the main header
+                const lookAheadLimit = Math.min(nextLineIdx + 2, lines.length);
+                for (let checkIdx = nextLineIdx; checkIdx < lookAheadLimit; checkIdx++) {
+                    const checkLine = lines[checkIdx].toLowerCase();
+                    if (checkLine.includes('engenharia') || checkLine.includes('desenvolvedor') || checkLine.includes('analista') || checkLine.includes('telefone') || checkLine.includes('email') || checkLine.includes('perfil profissional')) {
+                        score += 10;
+                        console.log(`  [${i}] Bônus de contexto: linha seguinte tem palavra-chave de currículo`);
+                        break;
+                    }
+                }
+
+                console.log(`  [${i}] Candidato: "${candidateName}" (Score: ${score})`);
+                nameCandidates.push({ name: candidateName, score });
             }
+        } else {
+            console.log(`  [${i}] Nenhuma palavra capitalizada válida`);
         }
+    }
 
-        console.log(`  [${i}] Nenhuma palavra capitalizada válida`);
+    if (nameCandidates.length > 0) {
+        // Sort by score descending
+        nameCandidates.sort((a, b) => b.score - a.score);
+        result.nome = nameCandidates[0].name;
+        console.log(`=== VENCEDOR: "${result.nome}" com score ${nameCandidates[0].score} ===`);
+    } else {
+        console.log('Nenhum candidato a nome encontrado.');
     }
 
     console.log('=== FIM DEBUG ===');
