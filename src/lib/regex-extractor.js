@@ -16,19 +16,30 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL EXTRACTION (Ultra-Aggressive for fragmented letters) ---
-    // Method A: Check text without ANY spaces (best for "u e n i o @ h o t m a i l . c o m")
-    const tightEmailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-    const tightMatches = noSpacesText.match(tightEmailRegex);
+    // --- EMAIL EXTRACTION (With noise filtering) ---
+    // Matches standard emails and those broken by fragments
+    const emailRegex = /(?:[a-zA-Z0-9._%+-]\s*)+@\s*(?:[a-zA-Z0-9.-]\s*)+\.\s*[a-zA-Z]{2,}/gi;
+    const emailMatches = cleanText.match(emailRegex);
 
-    // Method B: Check clean text with fragmented pattern
-    const fragmentedEmailRegex = /(?:[a-zA-Z0-9._%+-]\s*)+@\s*(?:[a-zA-Z0-9.-]\s*)+\.\s*[a-zA-Z]{2,}/gi;
-    const fragmentedMatches = cleanText.match(fragmentedEmailRegex);
+    if (emailMatches && emailMatches.length > 0) {
+        let email = emailMatches[0].replace(/\s+/g, '').toLowerCase();
 
-    if (tightMatches && tightMatches.length > 0) {
-        result.email = tightMatches[0].toLowerCase();
-    } else if (fragmentedMatches && fragmentedMatches.length > 0) {
-        result.email = fragmentedMatches[0].replace(/\s+/g, '').replace(/[.,]$/, '').toLowerCase();
+        // Remove common noises at the end (case insensitive)
+        const noiseWords = ['linkedin', 'github', 'phone', 'tel', 'contato', 'sobre', 'experiencia', 'formacao', 'habilidades'];
+        noiseWords.forEach(word => {
+            if (email.endsWith(word)) {
+                email = email.substring(0, email.length - word.length);
+            }
+        });
+
+        // Remove ID numbers or CEP at the beginning (ex: ce63017010elibb...)
+        // Only if it's a long sequence of digits followed by a letter
+        email = email.replace(/^\d{5,}/, '');
+
+        // Final polish for stray characters
+        email = email.replace(/[.,\/]$/, '').replace(/^[.,\/n]/, '');
+
+        result.email = email;
     }
 
     // --- PHONE EXTRACTION (Resilient to spaces and formatting) ---
