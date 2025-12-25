@@ -16,14 +16,14 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL EXTRACTION (Very aggressive) ---
-    // Matches standard emails and those with subdomains or special chars
-    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-    const emailMatches = cleanText.match(emailRegex);
+    // --- EMAIL EXTRACTION (Handles fragmented emails with spaces) ---
+    // Matches standard emails and those broken by fragments: "user @ domain . com"
+    const fragmentedEmailRegex = /[a-zA-Z0-9._%+-]+\s*@\s*[a-zA-Z0-9.-]+\s*\.\s*[a-zA-Z]{2,}/gi;
+    const emailMatches = cleanText.match(fragmentedEmailRegex);
 
     if (emailMatches && emailMatches.length > 0) {
-        // Clean trailing dots or noise
-        result.email = emailMatches[0].replace(/[.,]$/, '').toLowerCase();
+        // Clean any spaces and potential trailing noise
+        result.email = emailMatches[0].replace(/\s+/g, '').replace(/[.,]$/, '').toLowerCase();
     }
 
     // --- PHONE EXTRACTION (Resilient to spaces and formatting) ---

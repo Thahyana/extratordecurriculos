@@ -29,13 +29,17 @@ export async function extractResumeData(text, apiKey) {
             Você é um assistente especialista em extração de dados de currículos.
             Analise o texto fornecido abaixo e extraia com PRECISÃO:
             - nome: Nome completo do candidato
-            - email: Endereço de email (procure por padrões como user@domain.com)
-            - telefone: Número de telefone/celular (procure por padrões com DDD como (11) 98888-7777 ou similares)
+            - email: Endereço de email
+            - telefone: Número de telefone/celular
 
-            Regras IMPORTANTES:
+            Contexto Importante:
+            O texto abaixo foi extraído de um PDF e pode conter espaços extras acidentais (ex: "e m a i l @ d o m i n i o . c o m" ou "( 1 1 ) 9 9 9 9 - 8 8 8 8"). 
+            Ignore esses espaços ao identificar o email e o telefone e reconstrua o dado correto.
+
+            Regras:
             1. Retorne APENAS um objeto JSON no formato: {"nome": "...", "email": "...", "telefone": "..."}
             2. Se o dado não existir de forma alguma, use "não encontrado".
-            3. Para o telefone, remova espaços desnecessários e mantenha o DDD se disponível.
+            3. Reconstrua emails e telefones removendo espaços que foram inseridos incorretamente pelo processo de extração.
             4. Não inclua Markdown, apenas o JSON puro.
 
             Texto do currículo:
