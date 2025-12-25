@@ -22,29 +22,42 @@ export function extractWithRegex(text) {
             /[a-zA-Z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-zA-Z0-9-]+\s*\.\s*)+[a-zA-Z]{2,}/gi // Captures with spaces
         ];
 
+        let bestCandidate = null;
+
         for (const pattern of patterns) {
-            const m1 = noSpacesText.match(pattern);
-            if (m1) return m1[0].toLowerCase().replace(/\s/g, '');
-            const m2 = cleanText.match(pattern);
-            if (m2) return m2[0].toLowerCase().replace(/\s/g, '');
+            const matches = [...(noSpacesText.matchAll(pattern)), ...(cleanText.matchAll(pattern))];
+            for (const m of matches) {
+                let candidate = m[0].toLowerCase().replace(/\s/g, '');
+                // Basic validation: length and at least one dot
+                if (candidate.length > 5 && candidate.includes('.')) {
+                    bestCandidate = candidate;
+                    break;
+                }
+            }
+            if (bestCandidate) break;
         }
 
         // Fallback: Extremely fragmented search (Find @ and expand)
-        const atIndices = [];
-        let idx = cleanText.indexOf('@');
-        while (idx !== -1) {
-            atIndices.push(idx);
-            idx = cleanText.indexOf('@', idx + 1);
-        }
+        if (!bestCandidate) {
+            const atIndices = [];
+            let idx = cleanText.indexOf('@');
+            while (idx !== -1) {
+                atIndices.push(idx);
+                idx = cleanText.indexOf('@', idx + 1);
+            }
 
-        for (const pos of atIndices) {
-            const start = Math.max(0, pos - 80);
-            const end = Math.min(cleanText.length, pos + 80);
-            const slice = cleanText.substring(start, end).replace(/\s/g, '');
-            const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-            if (match) return match[0].toLowerCase();
+            for (const pos of atIndices) {
+                const start = Math.max(0, pos - 80);
+                const end = Math.min(cleanText.length, pos + 80);
+                const slice = cleanText.substring(start, end).replace(/\s/g, '');
+                const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+                if (match) {
+                    bestCandidate = match[0].toLowerCase();
+                    break;
+                }
+            }
         }
-        return null;
+        return bestCandidate;
     };
 
     const rawEmail = getEmail();
@@ -68,12 +81,21 @@ export function extractWithRegex(text) {
             }
         }
 
-        // Aggressive prefix noise removal (common PDF artifacts)
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|z-|a\.|aluno\.|c\.)[:\s\-_]*/i, '');
-        // Remove leading dots, dashes or single letters leftovers
-        email = email.replace(/^[.\-_]+/, '').replace(/^[a-z][.\-_]/i, '');
+        // --- AGGRESSIVE NOISE REMOVAL ---
+        // 1. Remove CEPs and long digit sequences (5-12 digits) at start
+        email = email.replace(/^\d{5,12}/, '');
 
-        result.email = email.replace(/[.,\/_-]+$/, '');
+        // 2. Remove keyword prefixes that are common in PDF artifacts
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel)[:\s\-_]*/i, '');
+
+        // 3. Remove leading single-letter orphans (the 'n' in 'ntah_costah')
+        // Only if followed by another letter (prevents removing 'a@...')
+        email = email.replace(/^[a-z][.\-_]*/i, (m) => (email.length > m.length + 3 ? '' : m));
+
+        // 4. Final trim of symbols
+        email = email.replace(/^[.\-_]+/, '').replace(/[.,\/_-]+$/, '');
+
+        result.email = email;
     }
 
     // --- PHONE ---
