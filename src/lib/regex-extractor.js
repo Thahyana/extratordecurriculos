@@ -25,10 +25,11 @@ export function extractWithRegex(text) {
         if (m2) return m2[0].toLowerCase();
 
         // 2. Fallback: Find '@' and expand outwards (Best for extremely fragmented text)
+        // Increased radius to 60 to catch long fragmented emails
         const atIndex = cleanText.indexOf('@');
         if (atIndex !== -1) {
-            const start = Math.max(0, atIndex - 40);
-            const end = Math.min(cleanText.length, atIndex + 40);
+            const start = Math.max(0, atIndex - 60);
+            const end = Math.min(cleanText.length, atIndex + 60);
             const slice = cleanText.substring(start, end).replace(/\s/g, '');
             const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
             if (match) return match[0].toLowerCase();
@@ -39,12 +40,15 @@ export function extractWithRegex(text) {
     const rawEmail = getEmail();
     if (rawEmail) {
         let email = rawEmail;
-        const tld = email.match(/\.(com|br|net|org|edu|gov)/i);
-        if (tld) email = email.substring(0, email.indexOf(tld[0]) + tld[0].length);
+        // Expanded TLD detection including .com.br and others
+        const tldMatch = email.match(/\.(com\.br|com|br|net|org|edu|gov|me|co|io|tech|info)/i);
+        if (tldMatch) email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
 
-        // Clean fragment prefixes
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name)[:\s-_]*/i, '');
-        result.email = email.replace(/^[a-z]{0,2}\d{5,}/i, '').replace(/^[.,\/n_-]+/, '');
+        // Clean fragment prefixes (CEPs, results, contact labels)
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link)[:\s\-_]*/i, '');
+        // Remove long digit sequences (like partial ZIP codes or PDF noise) at the start
+        email = email.replace(/^[a-z0-9]{5,20}(?=[a-z])/, '');
+        result.email = email.replace(/^[.,\/n_-]+/, '').replace(/[.,\/_-]+$/, '');
     }
 
     // --- PHONE ---
