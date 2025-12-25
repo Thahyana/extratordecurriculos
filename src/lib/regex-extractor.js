@@ -45,19 +45,59 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME (Multi-line Join) ---
+    // --- NAME (Advanced Cleaning and Join) ---
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
-    const forbidden = ['COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'FORTALEZA', 'MACEIO', 'BRASIL', 'CURRICULO', 'CONTATO'];
-    let collected = [];
+    const forbidden = [
+        'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'FORTALEZA', 'MACEIO',
+        'BRASIL', 'CURRICULO', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
+        'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'SKILLS', 'HABILIDADES', 'PROJETOS'
+    ];
+
+    let collectedNames = [];
     for (let i = 0; i < Math.min(6, lines.length); i++) {
-        let l = lines[i].replace(/^(nome|name|candidato|candidate|cv|perfil)[:\s\-]*/i, '').trim();
-        if (l.length < 2 || l.includes('@') || forbidden.some(k => l.toUpperCase().includes(k))) {
-            if (collected.length > 0) break;
+        let line = lines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo)[:\s\-]*/i, '').trim();
+
+        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http')) {
+            if (collectedNames.length > 0) break;
             continue;
         }
-        if (collected.length < 3) collected.push(l);
+
+        const upper = line.toUpperCase();
+
+        // Find if the line contains a forbidden word and cut it
+        let cutIndex = -1;
+        for (const word of forbidden) {
+            const idx = upper.indexOf(word);
+            if (idx !== -1 && (cutIndex === -1 || idx < cutIndex)) {
+                cutIndex = idx;
+            }
+        }
+
+        if (cutIndex !== -1) {
+            line = line.substring(0, cutIndex).trim();
+            if (line.length < 3) {
+                if (collectedNames.length > 0) break;
+                continue;
+            }
+            // If we cut, it's definitely the end of the name area
+            collectedNames.push(line);
+            break;
+        }
+
+        // Check if words in line look like a name (starts with Caps)
+        const words = line.split(/\s+/);
+        const nameLike = words.filter(w => /^[A-ZÀ-Ú]/.test(w)).length / words.length > 0.5;
+
+        if (nameLike) {
+            collectedNames.push(line);
+        } else if (collectedNames.length > 0) {
+            break; // Stop if we hit a line that doesn't look like a name
+        }
     }
-    if (collected.length > 0) result.nome = collected.join(' ').trim();
+
+    if (collectedNames.length > 0) {
+        result.nome = collectedNames.join(' ').trim();
+    }
 
     return result;
 }
