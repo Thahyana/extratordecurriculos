@@ -10,32 +10,58 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // Email pattern - more robust
-    const emailRegex = /[a-zA-Z0-9._%+!$&'*-/=?^`{|}~-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
-    const emailMatch = text.match(emailRegex);
-    if (emailMatch && emailMatch[0]) {
-        result.email = emailMatch[0].toLowerCase();
+    // --- EMAIL REGEX (RFC 5322 compliant-ish but resume-friendly) ---
+    // Handles complex subdomains, plus signs, and various separators around it
+    const emailRegex = /[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?/g;
+    const emailMatches = text.match(emailRegex);
+    if (emailMatches && emailMatches.length > 0) {
+        // Clean potential trailing dots or noise picked up by loose regex
+        result.email = emailMatches[0].replace(/[.,]$/, '').toLowerCase();
     }
 
-    // Phone pattern (Brazilian formats) - improved to catch more variations
-    const phoneRegex = /(?:\+?55\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\s?)?[2-9]\d{3})[-\s]?(\d{4}))/g;
+    // --- PHONE REGEX (Hyper-flexible for Brazilian Formats) ---
+    // 1. Matches: (11) 99999-9999, 11 99999 9999, 11.99999.9999, +55 11 999999999, 9999-9999, etc.
+    // 2. Uses lookaheads to ensure we are not picking up a year range (YYYY-YYYY)
+    // 3. Avoids long sequences of digits that look like CPF (11 digits without separators)
+    const phoneRegex = /(?:\+?55\s?)?(?:\(?([1-9][0-9])\)?\s?)?(?:((?:9\s?)?[2-9]\d{3})[-\s\.]?(\d{4}))/g;
 
-    let bestPhone = null;
     const phoneMatches = [...text.matchAll(phoneRegex)];
+    let bestPhone = null;
 
     for (const match of phoneMatches) {
-        const fullMatch = match[0];
-        const isDateRange = /^(19|20)\d{2}\s*-\s*(19|20)\d{2}$/.test(fullMatch);
-        if (!isDateRange) {
-            // Prefer matches with DDD
-            if (match[1] || !bestPhone) {
-                bestPhone = fullMatch.trim();
+        const fullMatch = match[0].trim();
+
+        // Validation 1: Ignore common year ranges (e.g. 2010 - 2014)
+        if (/^(19|20)\d{2}\s*[-\/]\s*(19|20)\d{2}$/.test(fullMatch)) continue;
+
+        // Validation 2: Ignore if it looks exactly like a CPF (11 digits, maybe with dots/dash)
+        if (/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(fullMatch)) continue;
+
+        // Validation 3: Basic length check to avoid noise
+        const digitsOnly = fullMatch.replace(/\D/g, '');
+        if (digitsOnly.length < 8 || digitsOnly.length > 13) continue;
+
+        // Scoring/Preference:
+        // - Prefer matches with DDD (captured in match[1])
+        // - Prefer 9-digit mobile numbers
+        if (!bestPhone) {
+            bestPhone = fullMatch;
+        } else {
+            const currentHasDDD = /\(?\d{2}\)?/.test(bestPhone);
+            const newHasDDD = !!match[1];
+
+            if (newHasDDD && !currentHasDDD) {
+                bestPhone = fullMatch;
+            } else if (digitsOnly.length === 11 && digitsOnly.startsWith(match[1] || '')) {
+                // It's a full mobile number with DDD, likely the best one
+                bestPhone = fullMatch;
             }
         }
     }
 
     if (bestPhone) {
-        result.telefone = bestPhone;
+        // Clean the phone number for display
+        result.telefone = bestPhone.replace(/\s+/g, ' ').trim();
     }
 
     // Name extraction - handle single-line PDFs
