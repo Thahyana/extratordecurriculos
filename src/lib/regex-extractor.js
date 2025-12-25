@@ -16,29 +16,34 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL EXTRACTION (Find @ and expand outwards) ---
+    // --- EMAIL EXTRACTION (Power Search) ---
     const findEmail = (str) => {
-        // Look for the @ symbol as an anchor
+        // Method A: Split by common delimiters and check parts
         const parts = str.split(/[\s|;:]+/);
         for (let part of parts) {
             if (part.includes('@') && part.includes('.') && part.length > 5) {
                 let email = part.trim().toLowerCase();
-
-                // Cut at TLD to avoid "email.comlinkedin"
                 const tldMatch = email.match(/\.(com|br|net|org)/i);
                 if (tldMatch) {
                     email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
                 }
-
-                // Remove common prefix noise
                 email = email.replace(/^[a-z]{0,2}\d{5,15}/i, '');
                 email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name)[:\s-_]*/i, '');
                 email = email.replace(/^[.,\/n_-]+/, '').replace(/[.,\/]$/, '');
 
-                if (email.includes('@') && email.split('@')[1].includes('.')) {
-                    return email;
-                }
+                if (email.includes('@') && email.split('@')[1].includes('.')) return email;
             }
+        }
+
+        // Method B: Global regex search (best for noSpacesText or very messy text)
+        const globalEmailRegex = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
+        const matches = str.match(globalEmailRegex);
+        if (matches && matches.length > 0) {
+            let email = matches[0].toLowerCase();
+            // Apply same TLD crop
+            const tldMatch = email.match(/\.(com|br|net|org)/i);
+            if (tldMatch) email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
+            return email;
         }
         return null;
     };
@@ -46,7 +51,7 @@ export function extractWithRegex(text) {
     const extractedEmail = findEmail(cleanText) || findEmail(noSpacesText);
     if (extractedEmail) result.email = extractedEmail;
 
-    // --- PHONE EXTRACTION (Power Search) ---
+    // --- PHONE EXTRACTION ---
     const validDDDs = [11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99];
     const compactedDigits = normalizedText.replace(/\D/g, '');
     const phoneMatches = [...compactedDigits.matchAll(/([1-9][0-9])(9?\d{8})/g)];
@@ -60,30 +65,39 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME EXTRACTION (Strict Filter) ---
+    // --- NAME EXTRACTION (Advanced Filtering) ---
     let lines = normalizedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     const potentialHeaderLines = [];
-    const stopWords = [
+    const discardWords = [
         'ENGENHEIR', 'ENFERMEIR', 'ANALISTA', 'DESENVOLVEDOR', 'TÉCNICO', 'AUXILIAR', 'GERENTE',
-        'ESTAGIÁRIO', 'PROFISSIONAL', 'DESCRIÇÃO', 'CURRÍCULO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO',
+        'ESTAGIÁRIO', 'DESCRIÇÃO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO', 'FORMAÇÃO', 'ACADÊMICO',
         'SOBRE', 'OBJECTIVE', 'SKILLS', 'EDUCATION', 'SUMMARY', 'PROFILE', 'CURRICULUM', 'RESUME'
     ];
 
-    for (let i = 0; i < Math.min(6, lines.length); i++) {
+    for (let i = 0; i < Math.min(8, lines.length); i++) {
         let line = lines[i]
-            .replace(/^(nome|name|candidato|candidate|currículo|curriculum|profissional|resumo)[:\s\-]*/i, '')
+            .replace(/^(nome|name|candidato|candidate|currículo|curriculum|cv|profissional|resumo|perfil)[:\s\-]*/i, '')
             .trim();
 
         if (line.length < 2) continue;
 
-        const lowerLine = line.toUpperCase();
-        if (['@', 'HTTP', '.COM', 'TELEFONE', 'EMAIL'].some(w => lowerLine.includes(w))) break;
+        const upperLine = line.toUpperCase();
+        // Break only for definitive contact info
+        if (['@', 'HTTP', 'WWW.'].some(w => upperLine.includes(w))) break;
 
-        // Stop if line contains a profession or section header
-        if (stopWords.some(word => lowerLine.includes(word))) break;
+        // Remove trailing professions/titles instead of breaking
+        discardWords.forEach(word => {
+            const idx = upperLine.indexOf(word);
+            if (idx !== -1) {
+                line = line.substring(0, idx).trim();
+            }
+        });
+
+        if (line.length < 2) continue;
 
         const words = line.split(/\s+/);
-        const isCapitalized = words.every(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w));
+        // Valid if mostly capitalized words 
+        const isCapitalized = words.length >= 2 && words.every(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w));
 
         if (isCapitalized) {
             potentialHeaderLines.push(line);
@@ -93,7 +107,7 @@ export function extractWithRegex(text) {
     }
 
     if (potentialHeaderLines.length > 0) {
-        result.nome = potentialHeaderLines.join(' ');
+        result.nome = potentialHeaderLines.join(' ').trim();
     }
 
     // The original code had a nameCandidates block after this, which is now redundant
