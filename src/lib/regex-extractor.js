@@ -14,20 +14,36 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL ---
+    // --- EMAIL (Anchored Robust Search) ---
     const getEmail = () => {
         const regex = /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi;
+
+        // 1. Try Standard Regex in no-spaces and clean text
         const m1 = noSpacesText.match(regex);
         if (m1) return m1[0].toLowerCase();
         const m2 = cleanText.match(regex);
         if (m2) return m2[0].toLowerCase();
+
+        // 2. Fallback: Find '@' and expand outwards (Best for extremely fragmented text)
+        const atIndex = cleanText.indexOf('@');
+        if (atIndex !== -1) {
+            const start = Math.max(0, atIndex - 40);
+            const end = Math.min(cleanText.length, atIndex + 40);
+            const slice = cleanText.substring(start, end).replace(/\s/g, '');
+            const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+            if (match) return match[0].toLowerCase();
+        }
         return null;
     };
+
     const rawEmail = getEmail();
     if (rawEmail) {
         let email = rawEmail;
-        const tld = email.match(/\.(com|br|net|org)/i);
+        const tld = email.match(/\.(com|br|net|org|edu|gov)/i);
         if (tld) email = email.substring(0, email.indexOf(tld[0]) + tld[0].length);
+
+        // Clean fragment prefixes
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name)[:\s-_]*/i, '');
         result.email = email.replace(/^[a-z]{0,2}\d{5,}/i, '').replace(/^[.,\/n_-]+/, '');
     }
 
@@ -45,12 +61,12 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME (Ultra-Strict Cleaning & Target Search) ---
+    // --- NAME (Resilient Label Removal & Multi-Line Join) ---
     const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
     const noiseWords = [
         'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'ANALISTA', 'TECNICO',
         'FORTALEZA', 'MACEIO', 'BRASIL', 'SAO PAULO', 'RIO DE JANEIRO', 'CEARA', 'CEARÁ',
-        'CURRICULO', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
+        'CURRICULO', 'PROFISSIONAL', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
         'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'UNIVERSIDADE', 'FACULDADE', 'SCHOOL',
         'ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AV.', 'BAIRRO', 'CEP:', 'JUAZEIRO',
         'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:',
@@ -60,33 +76,26 @@ export function extractWithRegex(text) {
 
     let candidates = [];
     for (let i = 0; i < Math.min(15, nameLines.length); i++) {
-        let line = nameLines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo|profissional)[:\s\-]*/i, '').trim();
+        // Double pass to remove multiple prefixes like "Currículo Profissional Lucas"
+        let line = nameLines[i].replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
+        line = line.replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
 
-        // Skip if line is clearly not a name
         if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('&')) {
             if (candidates.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
-
-        // Section header check - discard entire line if it's just a section title
-        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO'].includes(upper)) {
+        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL'].includes(upper)) {
             if (candidates.length > 0) break;
             continue;
         }
 
-        // Find cut point for job titles or addresses
         let cutPoint = -1;
         for (const sw of noiseWords) {
             const idx = upper.indexOf(sw);
-            // Only cut if the noise word is not at the very start (which would be handled by skip/continue)
             if (idx > 0 && (cutPoint === -1 || idx < cutPoint)) cutPoint = idx;
-            // If noise word is at start, skip this line unless we already have name parts
-            if (idx === 0) {
-                cutPoint = 0;
-                break;
-            }
+            if (idx === 0) { cutPoint = 0; break; }
         }
 
         const firstDigit = line.search(/\d/);
@@ -102,11 +111,10 @@ export function extractWithRegex(text) {
             continue;
         }
 
-        // Validate name format: 2+ words, mostly capitalized
         const words = line.split(/\s+/);
         const capScore = words.filter(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w)).length / words.length;
 
-        if (capScore > 0.6 && words.length >= 1) {
+        if (capScore > 0.6) {
             candidates.push(line);
         } else if (candidates.length > 0) {
             break;
