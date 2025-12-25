@@ -72,7 +72,9 @@ export function extractWithRegex(text) {
         'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:',
         'ASSISTENTE', 'OPERACAO', 'OPERAÇÃO', 'PROCESSOS', 'DIRETOR', 'GERENTE', 'COORDENADOR',
         'AUXILIAR', 'HABILIDADES', 'HABIL', 'COMPETENCIAS', 'QUALIFICACOES', 'QUALIFICAÇÕES',
-        'DESENVOLVIMENTO', 'FULL STACK', 'STACK', 'SOFTWARE', 'DEVELOPER'
+        'DESENVOLVIMENTO', 'FULL STACK', 'STACK', 'SOFTWARE', 'DEVELOPER',
+        'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
+        'INÍCIO', 'INICIO', 'ATUAL', 'DATA', 'NASCIMENTO', 'TEL:', 'FONE:'
     ];
 
     let candidates = [];
@@ -81,13 +83,15 @@ export function extractWithRegex(text) {
         let line = nameLines[i].replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
         line = line.replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
 
-        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('&') || line.includes('–')) {
+        // Skip if line is clearly not a name or contains metadata symbols
+        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') ||
+            line.includes('&') || line.includes('–') || line.includes('—') || line.includes(':')) {
             if (candidates.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
-        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL', 'DESENVOLVIMENTO', 'FULL STACK', 'DEVELOPER'].some(w => upper.includes(w))) {
+        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL', 'DESENVOLVIMENTO', 'FULL STACK', 'DEVELOPER', 'INÍCIO', 'JULHO'].some(w => upper.includes(w))) {
             if (candidates.length > 0) break;
             continue;
         }
