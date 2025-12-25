@@ -261,7 +261,7 @@ function App() {
                 </button>
               </div>
               <button onClick={handleProcess} disabled={loading} className="btn btn-primary" style={{ fontSize: '1.125rem', padding: '1.25rem 3rem' }}>
-                {loading ? <><Loader2 className="animate-spin" /> Processando IA...</> : 'Processar Extração'}
+                {loading ? <><Loader2 className="animate-spin" /> Processando...</> : 'Processar Extração'}
               </button>
             </div>
           )}
