@@ -81,18 +81,25 @@ export function extractWithRegex(text) {
             }
         }
 
-        // --- AGGRESSIVE NOISE REMOVAL ---
-        // 1. Remove CEPs and long digit sequences (5-12 digits) at start
-        email = email.replace(/^\d{5,12}/, '');
+        // --- NUCLEAR NOISE REMOVAL ---
+        // 1. Remove CEPs with state prefixes (e.g., ce63017010) or just digits
+        email = email.replace(/^[a-z]{0,2}\d{5,15}/i, '');
 
-        // 2. Remove keyword prefixes that are common in PDF artifacts
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel)[:\s\-_]*/i, '');
+        // 2. Remove common keyword prefixes (expanded list)
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel|user|usuario|login)[:\s\-_]*/i, '');
 
-        // 3. Remove leading single-letter orphans (the 'n' in 'ntah_costah')
-        // Only if followed by another letter (prevents removing 'a@...')
-        email = email.replace(/^[a-z][.\-_]*/i, (m) => (email.length > m.length + 3 ? '' : m));
+        // 3. Remove leading single OR double letters orphans followed by dots/dashes
+        // Or just a single letter prefix that looks like noise (Thahyana 'n' issue)
+        email = email.replace(/^[a-z]{1,2}[.\-_]/i, '');
+        // Special case: if email starts with a single letter that is NOT 'a' (could be 'a@...') and then a vowel/consonant cluster
+        // we check if removing it helps. Usually single letter 'n', 'c', 'z' at start are noise.
+        if (/^[b-z][a-z0-9]/.test(email) && email.length > 8) {
+            // If we have something like 'ntah_costah', we compare with Taah. 
+            // But simpler: just strip single leading [n,z,c,u,p] if they look like artifacts
+            email = email.replace(/^[nzcup](?=[a-z])/, '');
+        }
 
-        // 4. Final trim of symbols
+        // 4. Final trim of symbols and stray dots
         email = email.replace(/^[.\-_]+/, '').replace(/[.,\/_-]+$/, '');
 
         result.email = email;
