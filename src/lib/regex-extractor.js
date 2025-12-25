@@ -45,7 +45,7 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME (Resilient Cleaning & Target Search) ---
+    // --- NAME (Ultra-Strict Cleaning & Target Search) ---
     const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
     const noiseWords = [
         'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'ANALISTA', 'TECNICO',
@@ -53,46 +53,60 @@ export function extractWithRegex(text) {
         'CURRICULO', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
         'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'UNIVERSIDADE', 'FACULDADE', 'SCHOOL',
         'ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AV.', 'BAIRRO', 'CEP:', 'JUAZEIRO',
-        'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:'
+        'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:',
+        'ASSISTENTE', 'OPERACAO', 'OPERAÇÃO', 'PROCESSOS', 'DIRETOR', 'GERENTE', 'COORDENADOR',
+        'AUXILIAR', 'HABILIDADES', 'HABIL', 'COMPETENCIAS', 'QUALIFICACOES', 'QUALIFICAÇÕES'
     ];
 
     let candidates = [];
     for (let i = 0; i < Math.min(15, nameLines.length); i++) {
         let line = nameLines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo|profissional)[:\s\-]*/i, '').trim();
 
-        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http')) {
+        // Skip if line is clearly not a name
+        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('&')) {
             if (candidates.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
 
-        // Find cut point (stop words or digits)
+        // Section header check - discard entire line if it's just a section title
+        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO'].includes(upper)) {
+            if (candidates.length > 0) break;
+            continue;
+        }
+
+        // Find cut point for job titles or addresses
         let cutPoint = -1;
         for (const sw of noiseWords) {
             const idx = upper.indexOf(sw);
-            if (idx !== -1 && (cutPoint === -1 || idx < cutPoint)) cutPoint = idx;
+            // Only cut if the noise word is not at the very start (which would be handled by skip/continue)
+            if (idx > 0 && (cutPoint === -1 || idx < cutPoint)) cutPoint = idx;
+            // If noise word is at start, skip this line unless we already have name parts
+            if (idx === 0) {
+                cutPoint = 0;
+                break;
+            }
         }
 
         const firstDigit = line.search(/\d/);
         if (firstDigit !== -1 && (cutPoint === -1 || firstDigit < cutPoint)) cutPoint = firstDigit;
 
         if (cutPoint !== -1) {
-            line = line.substring(0, cutPoint).trim().replace(/[,\-:;]+$/, '');
-            if (line.length > 3) {
+            line = line.substring(0, cutPoint).trim().replace(/[,\-:;&]+$/, '');
+            if (line.length > 3 && line.split(/\s+/).length >= 2) {
                 candidates.push(line);
-                break; // Found name and hit noise -> we are done
+                break;
             }
-            // If noise is at the start and we haven't found a name, just skip this line
             if (candidates.length > 0) break;
             continue;
         }
 
-        // Validate if it looks like a name
+        // Validate name format: 2+ words, mostly capitalized
         const words = line.split(/\s+/);
         const capScore = words.filter(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w)).length / words.length;
 
-        if (capScore > 0.6) {
+        if (capScore > 0.6 && words.length >= 1) {
             candidates.push(line);
         } else if (candidates.length > 0) {
             break;
@@ -100,7 +114,10 @@ export function extractWithRegex(text) {
     }
 
     if (candidates.length > 0) {
-        result.nome = candidates.join(' ').trim();
+        const joined = candidates.join(' ').trim();
+        if (joined.split(/\s+/).length >= 2) {
+            result.nome = joined;
+        }
     }
 
     return result;
