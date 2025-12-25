@@ -7,13 +7,13 @@ import { Sun, Moon, Upload, FileText, Loader2, Trash2, AlertCircle, X } from 'lu
 
 function App() {
   const [theme, setTheme] = useState('light')
-  const [file, setFile] = useState(null)
+  const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
   const [candidates, setCandidates] = useState([])
   const [selectedCandidates, setSelectedCandidates] = useState([])
-  const [openaiKey, setOpenaiKey] = useState('') // Actually using Gemini, but standard naming for "AI Key" sometimes, let's stick to Gemini
   const [geminiKey] = useState(import.meta.env.VITE_GEMINI_API_KEY || '')
   const [error, setError] = useState(null)
+  const [currentProgress, setCurrentProgress] = useState({ current: 0, total: 0 })
 
   useEffect(() => {
     // Theme setup
@@ -42,103 +42,101 @@ function App() {
       setCandidates(data || [])
     } catch (err) {
       console.error('Error fetching candidates:', err)
-      // Don't block UI, just log. 
-      // Maybe table doesn't exist yet.
     }
   }
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0])
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files)
+
+      if (files.length + newFiles.length > 100) {
+        setError('O limite máximo é de 100 currículos por vez.')
+        return
+      }
+
+      setFiles(prev => [...prev, ...newFiles])
       setError(null)
     }
   }
 
+  const removeFile = (index) => {
+    setFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
   const handleProcess = async () => {
-    if (!file) return
+    if (files.length === 0) return
     if (!geminiKey) {
-      if (!geminiKey) {
-        setError('Por favor, configure a chave da API Gemini no arquivo .env.')
-        return
-      }
+      setError('Por favor, configure a chave da API Gemini no arquivo .env.')
+      return
     }
 
     setLoading(true)
     setError(null)
+    setCurrentProgress({ current: 0, total: files.length })
+
+    const processedCandidates = []
 
     try {
-      // 1. Extract Text
-      let text = ""
-      if (file.type === 'application/pdf') {
-        text = await extractTextFromPDF(file)
-      } else {
-        // Fallback for text files
-        text = await file.text()
-      }
-
-      if (!text.trim()) {
-        throw new Error('Não foi possível extrair texto do arquivo.')
-      }
-
-      // 2. Extract Data with Gemini
-      const extractedData = await extractResumeData(text, geminiKey)
-
-      // 3. Save to Supabase (or fallback to local state if not configured)
-      let newCandidate = null
-
-      const hasSupabase = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
-
-      if (!hasSupabase) {
-        console.warn('Supabase não configurado. Executando em modo offline (apenas visualização).')
-        newCandidate = {
-          id: `temp-${Date.now()}`,
-          created_at: new Date().toISOString(),
-          nome: extractedData.nome,
-          email: extractedData.email,
-          telefone: extractedData.telefone
-        }
-      } else {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i]
+        setCurrentProgress(prev => ({ ...prev, current: i + 1 }))
 
         try {
-          const { data, error: dbError } = await supabase
-            .from('candidatos')
-            .insert([
-              {
+          // 1. Extract Text
+          let text = ""
+          if (file.type === 'application/pdf') {
+            text = await extractTextFromPDF(file)
+          } else {
+            text = await file.text()
+          }
+
+          if (!text.trim()) continue
+
+          // 2. Extract Data with Gemini
+          const extractedData = await extractResumeData(text, geminiKey)
+
+          // 3. Save to Supabase
+          const hasSupabase = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY
+
+          if (hasSupabase) {
+            const { data, error: dbError } = await supabase
+              .from('candidatos')
+              .insert([{
                 nome: extractedData.nome,
                 email: extractedData.email,
                 telefone: extractedData.telefone
-              }
-            ])
-            .select()
+              }])
+              .select()
 
-          if (dbError) throw dbError
-          newCandidate = data[0]
-        } catch (dbErr) {
-          console.error("Falha ao salvar no Supabase (ignorando e usando modo local):", dbErr)
-          // Fallback if Supabase call fails completely (e.g. client misconfiguration)
-          newCandidate = {
-            id: `local-error-${Date.now()}`,
-            created_at: new Date().toISOString(),
-            nome: extractedData.nome,
-            email: extractedData.email,
-            telefone: extractedData.telefone
+            if (!dbError && data) {
+              processedCandidates.push(data[0])
+            }
+          } else {
+            processedCandidates.push({
+              id: `temp-${Date.now()}-${i}`,
+              created_at: new Date().toISOString(),
+              nome: extractedData.nome,
+              email: extractedData.email,
+              telefone: extractedData.telefone
+            })
           }
+        } catch (fileErr) {
+          console.error(`Erro ao processar arquivo ${file.name}:`, fileErr)
+          // Continua para o próximo arquivo mesmo em caso de erro individual
         }
       }
 
       // 4. Update UI
-      if (newCandidate) {
-        setCandidates([newCandidate, ...candidates])
-      }
-      setFile(null)
-      // Reset file input manually if needed
+      setCandidates(prev => [...processedCandidates, ...prev])
+      setFiles([])
       document.getElementById('file-upload').value = ''
 
     } catch (err) {
       console.error(err)
-      setError(err.message || 'Ocorreu um erro ao processar o currículo.')
+      setError(err.message || 'Ocorreu um erro ao processar os currículos.')
     } finally {
       setLoading(false)
+      setCurrentProgress({ current: 0, total: 0 })
     }
   }
 
@@ -204,65 +202,82 @@ function App() {
           </div>
         </header>
 
-
-
         {/* Upload Area */}
         <div className={`card upload-area ${loading ? 'loading' : ''}`}>
           <input
             id="file-upload"
             type="file"
             accept=".pdf,.txt"
+            multiple
             onChange={handleFileChange}
             className="hidden"
           />
 
-          {!file ? (
+          {files.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
               <div className="upload-icon">
                 <Upload size={32} />
               </div>
               <div style={{ textAlign: 'center' }}>
-                <h3 className="text-xl font-semibold mb-2">Upload do Currículo</h3>
-                <p className="text-muted mb-4">Selecione um arquivo PDF para processar</p>
+                <h3 className="text-xl font-semibold mb-2">Upload de Currículos</h3>
+                <p className="text-muted mb-4">Selecione até 100 arquivos PDF para processar</p>
               </div>
               <label htmlFor="file-upload" className="btn btn-primary cursor-pointer" style={{ fontSize: '1rem', padding: '1rem 2.5rem' }}>
                 <Upload size={20} />
-                Escolher Arquivo
+                Escolher Arquivos
               </label>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-4 fade-in">
-              <div className="file-preview" style={{ position: 'relative', paddingRight: '2.5rem' }}>
-                <FileText size={20} className="file-icon" />
-                <span className="font-medium">{file.name}</span>
-                <button
-                  onClick={() => {
-                    setFile(null);
-                    setError(null);
-                    document.getElementById('file-upload').value = '';
-                  }}
-                  className="btn-outline"
-                  style={{
-                    position: 'absolute',
-                    right: '0.5rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    padding: '0.375rem',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'var(--bg-card)',
-                    border: '1px solid var(--border)'
-                  }}
-                  title="Remover arquivo"
-                >
-                  <X size={16} />
-                </button>
+            <div className="flex flex-col gap-6 fade-in">
+              <div className="files-grid">
+                {files.map((f, index) => (
+                  <div key={index} className="file-item">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <FileText size={18} className="file-icon shrink-0" />
+                      <span className="truncate text-sm font-medium">{f.name}</span>
+                    </div>
+                    {!loading && (
+                      <button
+                        onClick={() => removeFile(index)}
+                        className="remove-file-btn"
+                        title="Remover"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-              <button onClick={handleProcess} disabled={loading} className="btn btn-primary" style={{ fontSize: '1.125rem', padding: '1.25rem 3rem' }}>
-                {loading ? <><Loader2 className="animate-spin" /> Processando...</> : 'Processar Extração'}
-              </button>
+
+              <div className="flex flex-col items-center gap-4 mt-2">
+                <button
+                  onClick={handleProcess}
+                  disabled={loading}
+                  className="btn btn-primary"
+                  style={{ fontSize: '1.125rem', padding: '1.25rem 3.5rem', width: '100%', maxWidth: '400px' }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="animate-spin" />
+                      Processando {currentProgress.current}/{currentProgress.total}...
+                    </>
+                  ) : (
+                    `Processar ${files.length} Currículo${files.length > 1 ? 's' : ''}`
+                  )}
+                </button>
+
+                {!loading && (
+                  <button
+                    onClick={() => {
+                      setFiles([]);
+                      document.getElementById('file-upload').value = '';
+                    }}
+                    className="text-muted hover:text-error transition-colors text-sm font-medium"
+                  >
+                    Limpar Seleção
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
