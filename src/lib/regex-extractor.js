@@ -14,21 +14,32 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL (Anchored Robust Search) ---
+    // --- EMAIL (Ultra-Aggressive Anchored Search) ---
     const getEmail = () => {
-        const regex = /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi;
+        // Standard patterns
+        const patterns = [
+            /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi,
+            /[a-zA-Z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-zA-Z0-9-]+\s*\.\s*)+[a-zA-Z]{2,}/gi // Captures with spaces
+        ];
 
-        // 1. Try Standard Regex in no-spaces and clean text
-        const m1 = noSpacesText.match(regex);
-        if (m1) return m1[0].toLowerCase();
-        const m2 = cleanText.match(regex);
-        if (m2) return m2[0].toLowerCase();
+        for (const pattern of patterns) {
+            const m1 = noSpacesText.match(pattern);
+            if (m1) return m1[0].toLowerCase().replace(/\s/g, '');
+            const m2 = cleanText.match(pattern);
+            if (m2) return m2[0].toLowerCase().replace(/\s/g, '');
+        }
 
-        // 2. Fallback: Find '@' and expand outwards (Best for extremely fragmented text)
-        const atIndex = cleanText.indexOf('@');
-        if (atIndex !== -1) {
-            const start = Math.max(0, atIndex - 60);
-            const end = Math.min(cleanText.length, atIndex + 60);
+        // Fallback: Extremely fragmented search (Find @ and expand)
+        const atIndices = [];
+        let idx = cleanText.indexOf('@');
+        while (idx !== -1) {
+            atIndices.push(idx);
+            idx = cleanText.indexOf('@', idx + 1);
+        }
+
+        for (const pos of atIndices) {
+            const start = Math.max(0, pos - 80);
+            const end = Math.min(cleanText.length, pos + 80);
             const slice = cleanText.substring(start, end).replace(/\s/g, '');
             const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
             if (match) return match[0].toLowerCase();
@@ -41,21 +52,28 @@ export function extractWithRegex(text) {
         let email = rawEmail;
         const atPos = email.indexOf('@');
 
-        // ONLY cut TLDs after the @ symbol to avoid cutting nicknames/prefixes (e.g., .contato@...)
         if (atPos !== -1) {
             const domain = email.substring(atPos);
-            const tldMatch = domain.match(/\.(com\.br|com|br|net|org|edu|gov|me|co|io|tech|info)/i);
-            if (tldMatch) {
-                email = email.substring(0, atPos) + domain.substring(0, domain.indexOf(tldMatch[0]) + tldMatch[0].length);
+            // Sort TLDs by length descending to catch .com.br before .com
+            const tlds = ['.com.br', '.com', '.net.br', '.org.br', '.edu.br', '.gov.br', '.net', '.org', '.edu', '.me', '.co', '.io', '.tech', '.br'];
+            let bestTld = "";
+            for (const t of tlds) {
+                if (domain.includes(t)) {
+                    bestTld = t;
+                    break;
+                }
+            }
+            if (bestTld) {
+                email = email.substring(0, atPos) + domain.substring(0, domain.indexOf(bestTld) + bestTld.length);
             }
         }
 
-        // Clean fragment prefixes (CEPs, results, contact labels)
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|z-|a\.)[:\s\-_]*/i, '');
-        // Remove leading random fragments (like 1-2 letters followed by dot/dash)
-        email = email.replace(/^[a-z]{1,2}[.\-_]/i, '');
+        // Aggressive prefix noise removal (common PDF artifacts)
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|z-|a\.|aluno\.|c\.)[:\s\-_]*/i, '');
+        // Remove leading dots, dashes or single letters leftovers
+        email = email.replace(/^[.\-_]+/, '').replace(/^[a-z][.\-_]/i, '');
 
-        result.email = email.replace(/^[.,\/n_-]+/, '').replace(/[.,\/_-]+$/, '');
+        result.email = email.replace(/[.,\/_-]+$/, '');
     }
 
     // --- PHONE ---
