@@ -26,33 +26,23 @@ export async function extractResumeData(text, apiKey) {
             });
 
             const prompt = `
-            Você é um assistente especialista em extração de dados de currículos.
-            Sua missão é extrair Nome, Email e Telefone de textos de currículos que podem estar muito bagunçados devido à extração de PDF.
+            Você é um assistente especialista em extração de dados de currículos (Nome, Email, Telefone).
+            O texto abaixo veio de um PDF e pode estar fragmentado.
 
-            ### Exemplos de Treino (Entrada Bagunçada -> Saída Limpa):
-            Exemplo 1:
-            Entrada: "c e630 17 010 elibbcosta @ hotmail . comlinkedin.com/in/elibb"
-            Saída: {"nome": "não encontrado", "email": "elibbcosta@hotmail.com", "telefone": "não encontrado"}
+            REGRAS DE LIMPEZA:
+            - Se o email tiver "linkedin" ou "github" grudado no final, REMOVA.
+            - Se o email tiver números de CEP ou IDs grudados no início, REMOVA.
+            - Se o nome estiver quebrado em várias linhas, JUNTE.
+            - Remova espaços extras dentro de emails e telefones (ex: "u e n i o @" -> "uenio@").
 
-            Exemplo 2:
-            Entrada: "t a h _ c o s t a h @ h o t m a i l . c o m ( 8 5 ) 9 8 1 0 7 - 0 5 5 0"
-            Saída: {"nome": "não encontrado", "email": "tah_costah@hotmail.com", "telefone": "(85) 98107-0550"}
+            EXEMPLO:
+            Entrada: "THAHYANA \n COSTA LIMA \n tah_costah @ hotmail . comlinkedin.com/..."
+            Saída: {"nome": "THAHYANA COSTA LIMA", "email": "tah_costah@hotmail.com", "telefone": "não encontrado"}
 
-            Exemplo 3:
-            Entrada: "Nome: FRANCISCO UENIO PEREIRA DA SILVA... u e n i o @ h o t m a i l . c o m"
-            Saída: {"nome": "FRANCISCO UENIO PEREIRA DA SILVA", "email": "uenio@hotmail.com", "telefone": "não encontrado"}
+            RETORNE APENAS JSON:
+            {"nome": "...", "email": "...", "telefone": "..."}
 
-            ### Suas Tarefas:
-            1. Identifique o Nome Completo. Se estiver precedido por "Nome:", remova o prefixo.
-            2. Identifique o Email. Remova qualquer espaço interno ou texto grudado no final (como "linkedin").
-            3. Identifique o Telefone (DDD incluído). Remova espaços internos.
-            
-            ### Regras Estritas:
-            - Retorne APENAS o JSON puro. Sem Markdown.
-            - Se um campo não for encontrado, use "não encontrado".
-            - Ignore ruidos de PDF (espaços entre letras de uma mesma palavra).
-
-            ### Texto a Processar:
+            TEXTO:
             """
             ${text}
             """

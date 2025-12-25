@@ -21,12 +21,13 @@ export async function extractTextFromPDF(file) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
 
-            // Group items by their vertical position with a tolerance (3 pixels)
+            // Group items by their vertical position with a tolerance (5 pixels)
+            // Resumes often have slightly misaligned text blocks that should be one line
             const lines = [];
             textContent.items.forEach((item) => {
                 const y = item.transform[5];
                 // Find if we already have a line close to this Y
-                let line = lines.find(l => Math.abs(l.y - y) < 3);
+                let line = lines.find(l => Math.abs(l.y - y) < 5);
                 if (!line) {
                     line = { y, items: [] };
                     lines.push(line);
