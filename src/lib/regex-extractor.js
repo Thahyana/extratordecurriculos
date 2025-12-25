@@ -16,40 +16,39 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL EXTRACTION (Power Search) ---
-    const findEmail = (str) => {
-        // Method A: Split by common delimiters and check parts
-        const parts = str.split(/[\s|;:]+/);
+    // --- EMAIL EXTRACTION (Search in Clean and No-Spaces text) ---
+    const getBestEmail = () => {
+        const emailRegex = /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi;
+
+        // 1. Try noSpacesText (best for "u e n i o @ h o t m a i l . c o m")
+        let matches = noSpacesText.match(emailRegex);
+        if (matches) return matches[0].toLowerCase();
+
+        // 2. Try cleanText
+        matches = cleanText.match(emailRegex);
+        if (matches) return matches[0].toLowerCase();
+
+        // 3. Fallback: Split by common delimiters
+        const parts = cleanText.split(/[\s|;:]+/);
         for (let part of parts) {
             if (part.includes('@') && part.includes('.') && part.length > 5) {
-                let email = part.trim().toLowerCase();
-                const tldMatch = email.match(/\.(com|br|net|org)/i);
-                if (tldMatch) {
-                    email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
-                }
-                email = email.replace(/^[a-z]{0,2}\d{5,15}/i, '');
-                email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name)[:\s-_]*/i, '');
-                email = email.replace(/^[.,\/n_-]+/, '').replace(/[.,\/]$/, '');
-
-                if (email.includes('@') && email.split('@')[1].includes('.')) return email;
+                return part.replace(/[^\w.@+-]/g, '').toLowerCase();
             }
-        }
-
-        // Method B: Global regex search (best for noSpacesText or very messy text)
-        const globalEmailRegex = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
-        const matches = str.match(globalEmailRegex);
-        if (matches && matches.length > 0) {
-            let email = matches[0].toLowerCase();
-            // Apply same TLD crop
-            const tldMatch = email.match(/\.(com|br|net|org)/i);
-            if (tldMatch) email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
-            return email;
         }
         return null;
     };
 
-    const extractedEmail = findEmail(cleanText) || findEmail(noSpacesText);
-    if (extractedEmail) result.email = extractedEmail;
+    const extractedEmail = getBestEmail();
+    if (extractedEmail) {
+        let email = extractedEmail;
+        // Cut at TLD
+        const tldMatch = email.match(/\.(com|br|net|org)/i);
+        if (tldMatch) {
+            email = email.substring(0, email.indexOf(tldMatch[0]) + tldMatch[0].length);
+        }
+        // Clean prefix noise
+        result.email = email.replace(/^[a-z]{0,2}\d{5,}/i, '').replace(/^[.,\/n_-]+/, '');
+    }
 
     // --- PHONE EXTRACTION ---
     const validDDDs = [11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69, 71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99];
@@ -65,54 +64,43 @@ export function extractWithRegex(text) {
         }
     }
 
-    // --- NAME EXTRACTION (Advanced Filtering) ---
-    let lines = normalizedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    const potentialHeaderLines = [];
-    const discardWords = [
-        'ENGENHEIR', 'ENFERMEIR', 'ANALISTA', 'DESENVOLVEDOR', 'TÉCNICO', 'AUXILIAR', 'GERENTE',
-        'ESTAGIÁRIO', 'DESCRIÇÃO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO', 'FORMAÇÃO', 'ACADÊMICO',
-        'SOBRE', 'OBJECTIVE', 'SKILLS', 'EDUCATION', 'SUMMARY', 'PROFILE', 'CURRICULUM', 'RESUME'
+    // --- NAME EXTRACTION (Ultra Flexible) ---
+    const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    const stopKeywords = [
+        'ENGENHAR', 'MECÂNICA', 'ENFERMEIR', 'ANALISTA', 'DESENVOLVEDOR', 'TÉCNICO',
+        'ESTAGIÁRIO', 'CURRÍCULO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO', 'FORMAÇÃO', 'ACADÊMICO'
     ];
 
-    for (let i = 0; i < Math.min(8, lines.length); i++) {
-        let line = lines[i]
+    for (let i = 0; i < Math.min(10, nameLines.length); i++) {
+        let line = nameLines[i]
             .replace(/^(nome|name|candidato|candidate|currículo|curriculum|cv|profissional|resumo|perfil)[:\s\-]*/i, '')
             .trim();
 
-        if (line.length < 2) continue;
+        if (line.length < 3) continue;
+        if (line.includes('@') || line.includes('www.') || /\d{5,}/.test(line)) continue;
 
-        const upperLine = line.toUpperCase();
-        // Break only for definitive contact info
-        if (['@', 'HTTP', 'WWW.'].some(w => upperLine.includes(w))) break;
-
-        // Remove trailing professions/titles instead of breaking
-        discardWords.forEach(word => {
-            const idx = upperLine.indexOf(word);
-            if (idx !== -1) {
-                line = line.substring(0, idx).trim();
+        // Cut at profession/section
+        const upper = line.toUpperCase();
+        let cutIdx = -1;
+        stopKeywords.forEach(word => {
+            const idx = upper.indexOf(word);
+            if (idx !== -1 && (cutIdx === -1 || idx < cutIdx)) {
+                cutIdx = idx;
             }
         });
 
-        if (line.length < 2) continue;
+        if (cutIdx !== -1) line = line.substring(0, cutIdx).trim();
+        if (line.length < 3) continue;
 
+        // Valid name: 2+ words, most starting with Uppercase (accepts Thahyana)
         const words = line.split(/\s+/);
-        // Valid if mostly capitalized words 
-        const isCapitalized = words.length >= 2 && words.every(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w));
+        const nameScore = words.filter(w => /^[A-ZÀ-Ú]/.test(w)).length / words.length;
 
-        if (isCapitalized) {
-            potentialHeaderLines.push(line);
-        } else if (potentialHeaderLines.length > 0) {
+        if (words.length >= 2 && nameScore > 0.5) {
+            result.nome = line;
             break;
         }
     }
-
-    if (potentialHeaderLines.length > 0) {
-        result.nome = potentialHeaderLines.join(' ').trim();
-    }
-
-    // The original code had a nameCandidates block after this, which is now redundant
-    // and should be removed as per the instruction's implied replacement.
-    // The new logic for name extraction is entirely contained within the 'potentialHeaderLines' block.
 
     return result;
 }

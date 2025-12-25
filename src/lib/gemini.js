@@ -27,17 +27,16 @@ export async function extractResumeData(text, apiKey) {
 
             const prompt = `
             Você é um assistente especialista em extração de dados de currículos.
-            Extraia apenas: Nome Completo (sem cargo), Email e Telefone.
+            A missão é extrair APENAS o Nome Civil do candidato, Email e Telefone.
 
-            ### REGRAS CRÍTICAS DE NOME:
-            1. O nome deve ser APENAS o nome da pessoa. 
-            2. PARE de extrair o nome assim que encontrar uma PROFISSÃO (ex: Eng. Mecânica, Enfermeira), CARGO ou NOME DE SEÇÃO (ex: Descrição Profissional).
-            3. Se o texto for "JOÃO DA SILVA ENGENHEIRO", extraia apenas "JOÃO DA SILVA".
-            4. Remova prefixos como "Nome:", "Currículo:", "Candidato:".
+            ### REGRAS DO NOME:
+            1. O nome deve ser somente o nome da pessoa (ex: "Edna Mara Mattza").
+            2. NÃO inclua profissões, cargos ou cidades no nome (ex: remova "Engenharia Mecânica", "Enfermeira").
+            3. Ignore rótulos como "Nome:", "currículo de", "Candidato:".
 
-            ### REGRAS DE LIMPEZA (RUÍDOS DE PDF):
-            - Remova espaços extras internos (ex: "u e n i o @" -> "uenio@").
-            - Remova links de redes sociais grudados no email (ex: "email.comlinkedin" -> "email.com").
+            ### REGRAS DE LIMPEZA:
+            - Remova espaços extras em emails (ex: "u e n i o @" -> "uenio@").
+            - Remova links de redes sociais grudados no email.
 
             RETORNE APENAS JSON:
             {"nome": "...", "email": "...", "telefone": "..."}
