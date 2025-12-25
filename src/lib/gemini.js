@@ -38,9 +38,9 @@ export async function extractResumeData(text, apiKey) {
 
             ### REGRAS DE EMAIL (INFALÍVEL):
             1. O email deve ser APENAS o endereço real (ex: "fulano@gmail.com").
-            2. NUNCA inclua ruidos de PDF como CEPs (ex: "ce60...", "630..."), palavras de seções ("processos", "digitais", "link", "cv", "perfil") ou letras soltas no início (ex: "n", "z-", "a.").
-            3. Procure por emails mesmo que as letras estejam separadas por espaços e una-as.
-            4. Remova ruidos de redes sociais grudados.
+            2. NUNCA inclua ruidos de PDF como CEPs, nomes de instituições (ex: "fiocruz-", "ciocruz-", "ufc-") ou palavras de seções ("processos", "digitais", "cv").
+            3. Ignore letras soltas ou prefixos institucionais grudados no início do email (ex: "ciocruz-maramattza@..." -> USE "maramattza@...").
+            4. Se encontrar fragmentos de email em linhas diferentes, una-as.
             5. Se encontrar "ce63017010elibbcosta@hotmail.com", o correto é APENAS "elibbcosta@hotmail.com".
 
             RETORNE APENAS JSON:

@@ -86,7 +86,7 @@ export function extractWithRegex(text) {
         email = email.replace(/^[a-z]{0,2}\d{5,15}/i, '');
 
         // 2. Remove common keyword prefixes (expanded list)
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel|user|usuario|login)[:\s\-_]*/i, '');
+        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel|user|usuario|login|fiocruz|ciocruz|ufc|unifor)[:\s\-_]*/i, '');
 
         // 3. Remove leading single OR double letters orphans followed by dots/dashes
         // Or just a single letter prefix that looks like noise (Thahyana 'n' issue)
