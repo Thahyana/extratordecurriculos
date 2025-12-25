@@ -26,23 +26,23 @@ export async function extractResumeData(text, apiKey) {
             });
 
             const prompt = `
-            Você é um assistente especialista em extração de dados de currículos (Nome, Email, Telefone).
-            O texto abaixo veio de um PDF e pode estar fragmentado.
+            Você é um assistente especialista em extração de dados de currículos.
+            Extraia apenas: Nome Completo (sem cargo), Email e Telefone.
 
-            REGRAS DE LIMPEZA:
-            - Se o email tiver "linkedin" ou "github" grudado no final, REMOVA.
-            - Se o email tiver números de CEP ou IDs grudados no início, REMOVA.
-            - Se o nome estiver quebrado em várias linhas, JUNTE.
-            - Remova espaços extras dentro de emails e telefones (ex: "u e n i o @" -> "uenio@").
+            ### REGRAS CRÍTICAS DE NOME:
+            1. O nome deve ser APENAS o nome da pessoa. 
+            2. PARE de extrair o nome assim que encontrar uma PROFISSÃO (ex: Eng. Mecânica, Enfermeira), CARGO ou NOME DE SEÇÃO (ex: Descrição Profissional).
+            3. Se o texto for "JOÃO DA SILVA ENGENHEIRO", extraia apenas "JOÃO DA SILVA".
+            4. Remova prefixos como "Nome:", "Currículo:", "Candidato:".
 
-            EXEMPLO:
-            Entrada: "THAHYANA \n COSTA LIMA \n tah_costah @ hotmail . comlinkedin.com/..."
-            Saída: {"nome": "THAHYANA COSTA LIMA", "email": "tah_costah@hotmail.com", "telefone": "não encontrado"}
+            ### REGRAS DE LIMPEZA (RUÍDOS DE PDF):
+            - Remova espaços extras internos (ex: "u e n i o @" -> "uenio@").
+            - Remova links de redes sociais grudados no email (ex: "email.comlinkedin" -> "email.com").
 
             RETORNE APENAS JSON:
             {"nome": "...", "email": "...", "telefone": "..."}
 
-            TEXTO:
+            TEXTO DO CURRÍCULO:
             """
             ${text}
             """
