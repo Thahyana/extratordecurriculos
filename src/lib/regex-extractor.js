@@ -46,57 +46,51 @@ export function extractWithRegex(text) {
     }
 
     // --- NAME (Advanced Cleaning and Join) ---
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
-    const forbidden = [
+    const nameLinesFound = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
+    const stopWordsForName = [
         'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'FORTALEZA', 'MACEIO',
         'BRASIL', 'CURRICULO', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
-        'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'SKILLS', 'HABILIDADES', 'PROJETOS'
+        'OBJETIVO', 'FORMAÇÃO', 'ACADEMICO', 'UNIVERSIDADE', 'FACULDADE', 'SCHOOL'
     ];
 
-    let collectedNames = [];
-    for (let i = 0; i < Math.min(6, lines.length); i++) {
-        let line = lines[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo)[:\s\-]*/i, '').trim();
+    let finalNameParts = [];
+    for (let i = 0; i < Math.min(8, nameLinesFound.length); i++) {
+        let line = nameLinesFound[i].replace(/^(nome|name|candidato|candidate|cv|perfil|resumo|profissional)[:\s\-]*/i, '').trim();
 
         if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http')) {
-            if (collectedNames.length > 0) break;
+            if (finalNameParts.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
 
-        // Find if the line contains a forbidden word and cut it
-        let cutIndex = -1;
-        for (const word of forbidden) {
-            const idx = upper.indexOf(word);
-            if (idx !== -1 && (cutIndex === -1 || idx < cutIndex)) {
-                cutIndex = idx;
+        // Immediate cut if stop word is found
+        let cutAtPos = -1;
+        for (const sw of stopWordsForName) {
+            const idx = upper.indexOf(sw);
+            if (idx !== -1 && (cutAtPos === -1 || idx < cutAtPos)) {
+                cutAtPos = idx;
             }
         }
 
-        if (cutIndex !== -1) {
-            line = line.substring(0, cutIndex).trim();
-            if (line.length < 3) {
-                if (collectedNames.length > 0) break;
-                continue;
-            }
-            // If we cut, it's definitely the end of the name area
-            collectedNames.push(line);
+        if (cutAtPos !== -1) {
+            line = line.substring(0, cutAtPos).trim();
+            if (line.length > 2) finalNameParts.push(line);
             break;
         }
 
-        // Check if words in line look like a name (starts with Caps)
         const words = line.split(/\s+/);
-        const nameLike = words.filter(w => /^[A-ZÀ-Ú]/.test(w)).length / words.length > 0.5;
+        const capWeight = words.filter(w => /^[A-ZÀ-Ú]/.test(w) || /^(de|da|do|dos|das|e)$/i.test(w)).length / words.length;
 
-        if (nameLike) {
-            collectedNames.push(line);
-        } else if (collectedNames.length > 0) {
-            break; // Stop if we hit a line that doesn't look like a name
+        if (capWeight > 0.6) {
+            finalNameParts.push(line);
+        } else if (finalNameParts.length > 0) {
+            break;
         }
     }
 
-    if (collectedNames.length > 0) {
-        result.nome = collectedNames.join(' ').trim();
+    if (finalNameParts.length > 0) {
+        result.nome = finalNameParts.join(' ').trim();
     }
 
     return result;

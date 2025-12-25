@@ -31,9 +31,9 @@ export async function extractResumeData(text, apiKey) {
 
             ### REGRAS DO NOME:
             1. O nome deve ser o Nome CIVIL COMPLETO (ex: "Edna Mara Mattza").
-            2. NUNCA inclua profissões, cargos, CIDADES ou CURSOS no nome.
-            3. CORTA o nome se ele vier com lixo (ex: "João Silva Engenheiro" -> "João Silva").
-            4. Se o nome estiver quebrado em várias linhas, JUNTE-AS.
+            2. Se o nome estiver quebrado em várias linhas, JUNTE-AS (ex: "Thahyana" + "Costa Lima" -> "Thahyana Costa Lima").
+            3. NUNCA inclua profissões, cargos, CIDADES ou CURSOS no nome.
+            4. Se o nome vier com ruidos (ex: "Edna Mara Mattza Engenheira"), CORTA o ruido e deixe apenas o nome.
             5. IGNORAR nomes de instituições como "Digital College" no campo nome.
 
             ### REGRAS DE CONTATO:
