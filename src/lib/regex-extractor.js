@@ -4,11 +4,11 @@
  */
 
 export function extractWithRegex(text) {
-    // 1. Pre-normalization: Clean the text to remove common PDF noise
-    const cleanText = text
-        .replace(/\u0000/g, '') // Remove null characters
-        .replace(/\s+/g, ' ')   // Normalize multiple spaces to single space
-        .trim();
+    // 1. Pre-normalization: Clean the text
+    // Remove null bytes and other common PDF artifacts
+    const normalizedText = text.replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+    const cleanText = normalizedText.replace(/\s+/g, ' ').trim();
+    const noSpacesText = normalizedText.replace(/\s/g, '');
 
     const result = {
         nome: "não encontrado",
@@ -16,14 +16,19 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL EXTRACTION (Handles fragmented emails with spaces) ---
-    // Matches standard emails and those broken by fragments: "user @ domain . com"
-    const fragmentedEmailRegex = /[a-zA-Z0-9._%+-]+\s*@\s*[a-zA-Z0-9.-]+\s*\.\s*[a-zA-Z]{2,}/gi;
-    const emailMatches = cleanText.match(fragmentedEmailRegex);
+    // --- EMAIL EXTRACTION (Ultra-Aggressive for fragmented letters) ---
+    // Method A: Check text without ANY spaces (best for "u e n i o @ h o t m a i l . c o m")
+    const tightEmailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi;
+    const tightMatches = noSpacesText.match(tightEmailRegex);
 
-    if (emailMatches && emailMatches.length > 0) {
-        // Clean any spaces and potential trailing noise
-        result.email = emailMatches[0].replace(/\s+/g, '').replace(/[.,]$/, '').toLowerCase();
+    // Method B: Check clean text with fragmented pattern
+    const fragmentedEmailRegex = /(?:[a-zA-Z0-9._%+-]\s*)+@\s*(?:[a-zA-Z0-9.-]\s*)+\.\s*[a-zA-Z]{2,}/gi;
+    const fragmentedMatches = cleanText.match(fragmentedEmailRegex);
+
+    if (tightMatches && tightMatches.length > 0) {
+        result.email = tightMatches[0].toLowerCase();
+    } else if (fragmentedMatches && fragmentedMatches.length > 0) {
+        result.email = fragmentedMatches[0].replace(/\s+/g, '').replace(/[.,]$/, '').toLowerCase();
     }
 
     // --- PHONE EXTRACTION (Resilient to spaces and formatting) ---
