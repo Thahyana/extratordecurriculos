@@ -31,7 +31,7 @@ export async function extractResumeData(text, apiKey) {
 
             ### REGRAS DO NOME:
             1. O nome deve ser somente o nome da pessoa (ex: "Edna Mara Mattza").
-            2. NÃO inclua profissões, cargos ou cidades no nome (ex: remova "Engenharia Mecânica", "Enfermeira").
+            2. NÃO inclua profissões, cargos, CIDADES ou CURSOS no nome (ex: remova "Engenharia Mecânica", "Enfermeira", "Fortaleza", "Bacharelado em...").
             3. Ignore rótulos como "Nome:", "currículo de", "Candidato:".
 
             ### REGRAS DE LIMPEZA:

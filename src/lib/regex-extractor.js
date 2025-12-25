@@ -68,7 +68,9 @@ export function extractWithRegex(text) {
     const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
     const stopKeywords = [
         'ENGENHAR', 'MECÂNICA', 'ENFERMEIR', 'ANALISTA', 'DESENVOLVEDOR', 'TÉCNICO',
-        'ESTAGIÁRIO', 'CURRÍCULO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO', 'FORMAÇÃO', 'ACADÊMICO'
+        'ESTAGIÁRIO', 'CURRÍCULO', 'EXPERIÊNCIA', 'RESUMO', 'CONTATO', 'FORMAÇÃO', 'ACADÊMICO',
+        'CURSO', 'GRADUAÇÃO', 'BACHAREL', 'LICENCIATUR', 'DOUTOR', 'MESTRE', 'PÓS', 'ESPECIALIZA',
+        'FORTALEZA', 'MACEIÓ', 'CEARÁ', 'ALAGOAS', 'BRAZIL', 'BRASIL', 'SÃO PAULO', 'RIO DE JANEIRO'
     ];
 
     for (let i = 0; i < Math.min(10, nameLines.length); i++) {
