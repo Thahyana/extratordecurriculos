@@ -63,7 +63,7 @@ export function extractWithRegex(text) {
 
     // --- NAME (Resilient Label Removal & Multi-Line Join) ---
     const nameLines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 2);
-    const noiseWords = [
+    const noiseWordsList = [
         'COLLEGE', 'DIGITAL', 'ENGENHAR', 'MECANIC', 'ENFERM', 'ANALISTA', 'TECNICO',
         'FORTALEZA', 'MACEIO', 'BRASIL', 'SAO PAULO', 'RIO DE JANEIRO', 'CEARA', 'CEARÁ',
         'CURRICULO', 'PROFISSIONAL', 'CONTATO', 'SOBRE', 'EXPERIENCIA', 'RESUMO', 'PERFIL',
@@ -71,7 +71,8 @@ export function extractWithRegex(text) {
         'ENDEREÇO', 'ENDERECO', 'RUA ', 'AVENIDA', 'AV.', 'BAIRRO', 'CEP:', 'JUAZEIRO',
         'SOLTEIRO', 'CASADO', 'IDADE', 'ANOS', 'BRASILEIRO', 'EMAIL:', 'E-MAIL:',
         'ASSISTENTE', 'OPERACAO', 'OPERAÇÃO', 'PROCESSOS', 'DIRETOR', 'GERENTE', 'COORDENADOR',
-        'AUXILIAR', 'HABILIDADES', 'HABIL', 'COMPETENCIAS', 'QUALIFICACOES', 'QUALIFICAÇÕES'
+        'AUXILIAR', 'HABILIDADES', 'HABIL', 'COMPETENCIAS', 'QUALIFICACOES', 'QUALIFICAÇÕES',
+        'DESENVOLVIMENTO', 'FULL STACK', 'STACK', 'SOFTWARE', 'DEVELOPER'
     ];
 
     let candidates = [];
@@ -80,19 +81,19 @@ export function extractWithRegex(text) {
         let line = nameLines[i].replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
         line = line.replace(/^(currículo|curriculum|cv|profissional|nome|resumo|perfil|candidato)[:\s\-_]*/gi, '').trim();
 
-        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('&')) {
+        if (line.length < 2 || line.includes('@') || line.includes('www.') || line.includes('http') || line.includes('&') || line.includes('–')) {
             if (candidates.length > 0) break;
             continue;
         }
 
         const upper = line.toUpperCase();
-        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL'].includes(upper)) {
+        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL', 'DESENVOLVIMENTO', 'FULL STACK', 'DEVELOPER'].some(w => upper.includes(w))) {
             if (candidates.length > 0) break;
             continue;
         }
 
         let cutPoint = -1;
-        for (const sw of noiseWords) {
+        for (const sw of noiseWordsList) {
             const idx = upper.indexOf(sw);
             if (idx > 0 && (cutPoint === -1 || idx < cutPoint)) cutPoint = idx;
             if (idx === 0) { cutPoint = 0; break; }

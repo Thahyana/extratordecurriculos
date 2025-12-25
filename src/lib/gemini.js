@@ -29,16 +29,12 @@ export async function extractResumeData(text, apiKey) {
             Você é um assistente especialista em extração de dados de currículos.
             A missão é extrair APENAS o Nome Civil do candidato, Email e Telefone.
 
-            ### REGRAS DO NOME:
+            ### REGRAS DO NOME (EXTREMA IMPORTÂNCIA):
             1. O nome deve ser APENAS o Nome CIVIL COMPLETO (ex: "Edna Mara Mattza").
-            2. NUNCA inclua Endereços, Ruas, Bairros, CEPs, Cidades ou Estados no campo nome.
-            3. Se o nome vier com endereço grudado (ex: "João Silva Rua das Flores 123"), CORTA o endereço e deixe apenas o nome.
-            4. Se o nome estiver quebrado em várias linhas, JUNTE-AS.
-            5. IGNORA profissões, cargos e nomes de instituições (ex: "Digital College").
-
-            ### REGRAS DE CONTATO:
-            - Procure emails mesmo se estiverem fragmentados.
-            - Remova links de redes sociais grudados no email.
+            2. NUNCA use cargos, funções ou cursos no campo nome. Exemplos do que IGNORAR: "Desenvolvimento Full Stack", "Desenvolvedor", "Assistente", "Eletricista", "Engenheiro".
+            3. Se o nome vier com endereço grudado, CORTA o endereço.
+            4. Se no topo estiver escrito "Desenvolvimento Full Stack" e o nome estiver abaixo, USE O NOME.
+            5. NUNCA inclua símbolos como "–", "&" ou ":" no nome.
 
             RETORNE APENAS JSON:
             {"nome": "...", "email": "...", "telefone": "..."}
