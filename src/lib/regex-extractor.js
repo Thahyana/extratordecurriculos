@@ -74,7 +74,8 @@ export function extractWithRegex(text) {
         'AUXILIAR', 'HABILIDADES', 'HABIL', 'COMPETENCIAS', 'QUALIFICACOES', 'QUALIFICAÇÕES',
         'DESENVOLVIMENTO', 'FULL STACK', 'STACK', 'SOFTWARE', 'DEVELOPER',
         'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
-        'INÍCIO', 'INICIO', 'ATUAL', 'DATA', 'NASCIMENTO', 'TEL:', 'FONE:'
+        'INÍCIO', 'INICIO', 'ATUAL', 'DATA', 'NASCIMENTO', 'TEL:', 'FONE:',
+        'CURSOS', 'EXTRACURRICULARES', 'PROJETOS', 'ACADÊMICA', 'FORMAÇÃO'
     ];
 
     let candidates = [];
@@ -91,7 +92,8 @@ export function extractWithRegex(text) {
         }
 
         const upper = line.toUpperCase();
-        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL', 'DESENVOLVIMENTO', 'FULL STACK', 'DEVELOPER', 'INÍCIO', 'JULHO'].some(w => upper.includes(w))) {
+        // Strict stop for section headers
+        if (['HABILIDADES', 'PERFIL', 'RESUMO', 'CONTATO', 'EXPERIÊNCIA', 'OBJETIVO', 'PROFISSIONAL', 'DESENVOLVIMENTO', 'FULL STACK', 'DEVELOPER', 'INÍCIO', 'JULHO', 'CURSOS', 'EXTRACURRICULARES', 'PROJETOS'].some(w => upper.includes(w))) {
             if (candidates.length > 0) break;
             continue;
         }
@@ -127,7 +129,16 @@ export function extractWithRegex(text) {
     }
 
     if (candidates.length > 0) {
-        const joined = candidates.join(' ').trim();
+        let joined = candidates.join(' ').trim();
+
+        // Final polish: remove single letters 'n', 'c' or section noise that leaked
+        joined = joined.split(/\s+/).filter(word => {
+            const wUpper = word.toUpperCase();
+            if (word.length === 1 && !/^[AI]$/i.test(word)) return false; // Remove single letters except I/A
+            if (['CURSOS', 'EXTRACURRICULARES', 'PROJETOS'].includes(wUpper)) return false;
+            return true;
+        }).join(' ').trim();
+
         if (joined.split(/\s+/).length >= 2) {
             result.nome = joined;
         }

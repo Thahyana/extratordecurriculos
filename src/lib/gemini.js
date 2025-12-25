@@ -31,10 +31,10 @@ export async function extractResumeData(text, apiKey) {
 
             ### REGRAS DO NOME (EXTREMA IMPORTÂNCIA):
             1. O nome deve ser APENAS o Nome CIVIL COMPLETO (ex: "Edna Mara Mattza").
-            2. NUNCA use cargos, funções, cursos ou DATAS. Exemplos do que IGNORAR: "Desenvolvimento Full Stack", "Início: julho de", "2023 - 2024", "Assistente".
-            3. Se você ver "Início: julho de", isso NÃO é um nome. Pule e procure o nome da pessoa em outras linhas.
-            4. NUNCA inclua símbolos como "–", "—", "&", ":" ou "(" no nome.
-            5. O nome da pessoa geralmente é a maior fonte de texto nas primeiras 10 linhas, escrita em letras maiores ou em negrito (estimado).
+            2. IGNORAR COMPLETAMENTE cabeçalhos de seção misturados ao nome. Exemplos: "Cursos Extracurriculares", "Habilidades", "Projetos", "Experiência".
+            3. NUNCA inclua letras soltas como "n" ou "c" que pareçam ruído de PDF no meio do nome (ex: "Thahyana Costa n Cursos..." -> USE "Thahyana Costa Lima").
+            4. Se o nome estiver quebrado e houver títulos de seção entre as partes, PULE os títulos e una apenas as partes do nome.
+            5. NUNCA inclua datas, meses ou o termo "Início".
 
             RETORNE APENAS JSON:
             {"nome": "...", "email": "...", "telefone": "..."}
