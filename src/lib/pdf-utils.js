@@ -20,7 +20,26 @@ export async function extractTextFromPDF(file) {
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map((item) => item.str).join("\n");
+
+            // Group items by their vertical position (y-coordinate)
+            const lines = {};
+            textContent.items.forEach((item) => {
+                const y = Math.round(item.transform[5]); // y-coordinate
+                if (!lines[y]) lines[y] = [];
+                lines[y].push(item);
+            });
+
+            // Sort lines from top to bottom
+            const sortedY = Object.keys(lines).sort((a, b) => b - a);
+
+            const pageText = sortedY.map(y => {
+                // Sort items in each line from left to right
+                return lines[y]
+                    .sort((a, b) => a.transform[4] - b.transform[4])
+                    .map(item => item.str)
+                    .join(" ");
+            }).join("\n");
+
             fullText += pageText + "\n";
         }
 
