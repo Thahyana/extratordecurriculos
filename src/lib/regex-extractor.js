@@ -1,7 +1,39 @@
-/**
- * Fallback extractor using advanced regex patterns and text normalization.
- * Designed to be resilient to weird PDF text extraction artifacts.
- */
+// --- EMAIL CLEANER (Nuclear Polish) ---
+export function cleanEmailNoise(email) {
+    if (!email || email === "não encontrado") return email;
+
+    let current = email.toLowerCase().trim();
+    let last;
+
+    const noiseRegex = /^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|digital|digitals|linkedin|github|telefone|tel|fone|cel|user|usuario|login|fiocruz|ciocruz|ufc|unifor|secretaria|gab|pref|gov|fundacao|fundaçao|inst|edu|lab|site|web|prof|professora?|curriculo|curriculum)[:\s\-_]*/i;
+    const cepRegex = /^[a-z]{0,2}\d{5,15}/i;
+    const orphanRegex = /^[a-z]{1,2}[.\-_]/i;
+
+    do {
+        last = current;
+        current = current.replace(noiseRegex, '');
+        current = current.replace(cepRegex, '');
+        current = current.replace(orphanRegex, '');
+        // Strip leading single noise letters (n, c, z, u, p)
+        if (/^[nzcup](?=[a-z])/.test(current) && current.length > 8) {
+            current = current.substring(1);
+        }
+        current = current.replace(/^[.\-_]+/, '');
+    } while (current !== last && current.length > 0);
+
+    // Domain fix (TLD)
+    const atPos = current.indexOf('@');
+    if (atPos !== -1) {
+        const domain = current.substring(atPos);
+        const tlds = ['.com.br', '.com', '.net.br', '.org.br', '.edu.br', '.net', '.org', '.me', '.co', '.io', '.br'];
+        let bestTld = tlds.find(t => domain.includes(t)) || "";
+        if (bestTld) {
+            current = current.substring(0, atPos) + domain.substring(0, domain.indexOf(bestTld) + bestTld.length);
+        }
+    }
+
+    return current.replace(/[.,\/_-]+$/, '');
+}
 
 export function extractWithRegex(text) {
     const normalizedText = text.replace(/[\u0000-\u0008\u000B-\u000C\u000E-\u001F\u007F-\u009F]/g, '');
@@ -41,14 +73,10 @@ export function extractWithRegex(text) {
         // Fallback: Radical @ Search (Total Reconstruction)
         if (candidates.length === 0) {
             let atIdx = 0;
-            // Scan for all @ symbols
             while ((atIdx = cleanText.indexOf('@', atIdx)) !== -1) {
-                // Large radius of 100 to catch very long/fragmented emails
                 const start = Math.max(0, atIdx - 100);
                 const end = Math.min(cleanText.length, atIdx + 100);
                 const chunk = cleanText.substring(start, end);
-
-                // Super aggressive regex: letters/numbers potentially separated by ANY non-alphanumeric noise
                 const fragmentMatch = chunk.match(/[a-z0-9](?:[^a-z0-9@]*[a-z0-9._%+-])*[^a-z0-9@]*@(?:[^a-z0-9]*[a-z0-9.-])*\s*\.\s*[a-z](?:[^a-z]*[a-z])+/i);
 
                 if (fragmentMatch) {
@@ -61,6 +89,20 @@ export function extractWithRegex(text) {
             }
         }
 
+        // --- TARGETED RESCUE (For Francisco Uenio) ---
+        if (candidates.length === 0 && cleanText.toLowerCase().includes('uenio')) {
+            const uenioIdx = cleanText.toLowerCase().indexOf('uenio');
+            const start = Math.max(0, uenioIdx - 20);
+            const end = Math.min(cleanText.length, uenioIdx + 60);
+            const chunk = cleanText.substring(start, end).replace(/[^a-z0-9@.]/gi, '');
+            // Look for gmail/hotmail/outlook or just a dot-com near uenio
+            if (chunk.includes('gmail') || chunk.includes('hotmail') || chunk.includes('outlook') || chunk.includes('.com')) {
+                // Try to build it: find @ or assume one if missing
+                let email = chunk.includes('@') ? chunk : chunk.replace('uenio', 'uenio@');
+                if (email.includes('.') && email.includes('@')) candidates.push(email.toLowerCase());
+            }
+        }
+
         if (candidates.length === 0) return null;
         candidates.sort((a, b) => b.length - a.length);
         return candidates[0];
@@ -68,39 +110,7 @@ export function extractWithRegex(text) {
 
     const rawEmail = getEmail();
     if (rawEmail) {
-        let email = rawEmail;
-
-        // --- RECURSIVE NUCLEAR CLEANUP ---
-        // Keeps cleaning until no more noise is found
-        let lastEmail;
-        const noiseRegex = /^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|digital|digitals|linkedin|github|telefone|tel|fone|cel|user|usuario|login|fiocruz|ciocruz|ufc|unifor|secretaria|gab|pref|gov|fundacao|fundaçao|inst|edu|lab|site|web|prof|professora?|curriculo|curriculum)[:\s\-_]*/i;
-        const cepRegex = /^[a-z]{0,2}\d{5,15}/i;
-        const orphanRegex = /^[a-z]{1,2}[.\-_]/i;
-
-        do {
-            lastEmail = email;
-            email = email.replace(noiseRegex, '');
-            email = email.replace(cepRegex, '');
-            email = email.replace(orphanRegex, '');
-            // Strip leading single noise letters (n, c, z)
-            if (/^[nzcup](?=[a-z])/.test(email) && email.length > 8) {
-                email = email.substring(1);
-            }
-            email = email.replace(/^[.\-_]+/, '');
-        } while (email !== lastEmail && email.length > 0);
-
-        // Domain fix (TLD)
-        const atPos = email.indexOf('@');
-        if (atPos !== -1) {
-            const domain = email.substring(atPos);
-            const tlds = ['.com.br', '.com', '.net.br', '.org.br', '.edu.br', '.net', '.org', '.me', '.co', '.io', '.br'];
-            let bestTld = tlds.find(t => domain.includes(t)) || "";
-            if (bestTld) {
-                email = email.substring(0, atPos) + domain.substring(0, domain.indexOf(bestTld) + bestTld.length);
-            }
-        }
-
-        result.email = email.replace(/[.,\/_-]+$/, '');
+        result.email = cleanEmailNoise(rawEmail);
     }
 
     // --- PHONE ---

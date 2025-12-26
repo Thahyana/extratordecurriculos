@@ -1,6 +1,6 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { extractWithRegex } from "./regex-extractor";
+import { extractWithRegex, cleanEmailNoise } from "./regex-extractor";
 
 
 export async function extractResumeData(text, apiKey) {
@@ -80,7 +80,7 @@ export async function extractResumeData(text, apiKey) {
     // Mesclar resultados: IA tem preferência, mas se for "não encontrado", tentamos Regex
     const finalResult = {
         nome: aiResult.nome && aiResult.nome !== "não encontrado" ? aiResult.nome : regexResult.nome,
-        email: aiResult.email && aiResult.email !== "não encontrado" ? aiResult.email : regexResult.email,
+        email: cleanEmailNoise(aiResult.email && aiResult.email !== "não encontrado" ? aiResult.email : regexResult.email),
         telefone: aiResult.telefone && aiResult.telefone !== "não encontrado" ? aiResult.telefone : regexResult.telefone
     };
 
