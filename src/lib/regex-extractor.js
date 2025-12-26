@@ -14,95 +14,88 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL (Ultra-Aggressive Anchored Search) ---
+    // --- EMAIL (The Professional Hunter) ---
     const getEmail = () => {
-        // Standard patterns
         const patterns = [
             /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi,
-            /[a-zA-Z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-zA-Z0-9-]+\s*\.\s*)+[a-zA-Z]{2,}/gi // Captures with spaces
+            /[a-z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-z0-9-]+\s*\.\s*)+[a-z]{2,}/gi // Capture with spaces
         ];
 
-        let bestCandidate = null;
+        let candidates = [];
 
-        for (const pattern of patterns) {
-            const matches = [...(noSpacesText.matchAll(pattern)), ...(cleanText.matchAll(pattern))];
-            for (const m of matches) {
-                let candidate = m[0].toLowerCase().replace(/\s/g, '');
-                // Basic validation: length and at least one dot
-                if (candidate.length > 5 && candidate.includes('.')) {
-                    bestCandidate = candidate;
-                    break;
+        // Try to find in all text formats
+        [noSpacesText, cleanText, normalizedText].forEach(t => {
+            patterns.forEach(p => {
+                const matches = t.match(p);
+                if (matches) {
+                    matches.forEach(m => {
+                        let cleaned = m.toLowerCase().replace(/\s/g, '');
+                        if (cleaned.length > 5 && cleaned.includes('.') && cleaned.includes('@')) {
+                            candidates.push(cleaned);
+                        }
+                    });
                 }
+            });
+        });
+
+        // Fallback: Radical @ Search
+        if (candidates.length === 0) {
+            let atIdx = 0;
+            while ((atIdx = cleanText.indexOf('@', atIdx)) !== -1) {
+                const start = Math.max(0, atIdx - 80);
+                const end = Math.min(cleanText.length, atIdx + 80);
+                const chunk = cleanText.substring(start, end);
+                // Regex that allows spaces between EVERY character
+                const fragmentMatch = chunk.match(/[a-z0-9._%+-](?:\s*[a-z0-9._%+-])*\s*@\s*[a-z0-9.-](?:\s*[a-z0-9.-])*\s*\.\s*[a-z](?:\s*[a-z])+/i);
+                if (fragmentMatch) {
+                    candidates.push(fragmentMatch[0].toLowerCase().replace(/\s/g, ''));
+                }
+                atIdx++;
             }
-            if (bestCandidate) break;
         }
 
-        // Fallback: Extremely fragmented search (Find @ and expand)
-        if (!bestCandidate) {
-            const atIndices = [];
-            let idx = cleanText.indexOf('@');
-            while (idx !== -1) {
-                atIndices.push(idx);
-                idx = cleanText.indexOf('@', idx + 1);
-            }
+        if (candidates.length === 0) return null;
 
-            for (const pos of atIndices) {
-                const start = Math.max(0, pos - 80);
-                const end = Math.min(cleanText.length, pos + 80);
-                const slice = cleanText.substring(start, end).replace(/\s/g, '');
-                const match = slice.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-                if (match) {
-                    bestCandidate = match[0].toLowerCase();
-                    break;
-                }
-            }
-        }
-        return bestCandidate;
+        // Pick best (longest usually has less noise removed prematurely)
+        candidates.sort((a, b) => b.length - a.length);
+        return candidates[0];
     };
 
     const rawEmail = getEmail();
     if (rawEmail) {
         let email = rawEmail;
-        const atPos = email.indexOf('@');
 
+        // --- RECURSIVE NUCLEAR CLEANUP ---
+        // Keeps cleaning until no more noise is found
+        let lastEmail;
+        const noiseRegex = /^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|digital|digitals|linkedin|github|telefone|tel|fone|cel|user|usuario|login|fiocruz|ciocruz|ufc|unifor|secretaria|gab|pref|gov|fundacao|fundaçao|inst|edu|lab|site|web|prof|professora?|curriculo|curriculum)[:\s\-_]*/i;
+        const cepRegex = /^[a-z]{0,2}\d{5,15}/i;
+        const orphanRegex = /^[a-z]{1,2}[.\-_]/i;
+
+        do {
+            lastEmail = email;
+            email = email.replace(noiseRegex, '');
+            email = email.replace(cepRegex, '');
+            email = email.replace(orphanRegex, '');
+            // Strip leading single noise letters (n, c, z)
+            if (/^[nzcup](?=[a-z])/.test(email) && email.length > 8) {
+                email = email.substring(1);
+            }
+            email = email.replace(/^[.\-_]+/, '');
+        } while (email !== lastEmail && email.length > 0);
+
+        // Domain fix (TLD)
+        const atPos = email.indexOf('@');
         if (atPos !== -1) {
             const domain = email.substring(atPos);
-            // Sort TLDs by length descending to catch .com.br before .com
-            const tlds = ['.com.br', '.com', '.net.br', '.org.br', '.edu.br', '.gov.br', '.net', '.org', '.edu', '.me', '.co', '.io', '.tech', '.br'];
-            let bestTld = "";
-            for (const t of tlds) {
-                if (domain.includes(t)) {
-                    bestTld = t;
-                    break;
-                }
-            }
+            const tlds = ['.com.br', '.com', '.net.br', '.org.br', '.edu.br', '.net', '.org', '.me', '.co', '.io', '.br'];
+            let bestTld = tlds.find(t => domain.includes(t)) || "";
             if (bestTld) {
                 email = email.substring(0, atPos) + domain.substring(0, domain.indexOf(bestTld) + bestTld.length);
             }
         }
 
-        // --- NUCLEAR NOISE REMOVAL ---
-        // 1. Remove CEPs with state prefixes (e.g., ce63017010) or just digits
-        email = email.replace(/^[a-z]{0,2}\d{5,15}/i, '');
-
-        // 2. Remove common keyword prefixes (expanded list)
-        email = email.replace(/^(results|resultados|contato|email|gmail|hotmail|outlook|nome|name|cv|link|perfil|perfi|z-|a\.|aluno\.|c\.|processos|digitais|linkedin|github|telefone|tel|fone|cel|user|usuario|login|fiocruz|ciocruz|ufc|unifor)[:\s\-_]*/i, '');
-
-        // 3. Remove leading single OR double letters orphans followed by dots/dashes
-        // Or just a single letter prefix that looks like noise (Thahyana 'n' issue)
-        email = email.replace(/^[a-z]{1,2}[.\-_]/i, '');
-        // Special case: if email starts with a single letter that is NOT 'a' (could be 'a@...') and then a vowel/consonant cluster
-        // we check if removing it helps. Usually single letter 'n', 'c', 'z' at start are noise.
-        if (/^[b-z][a-z0-9]/.test(email) && email.length > 8) {
-            // If we have something like 'ntah_costah', we compare with Taah. 
-            // But simpler: just strip single leading [n,z,c,u,p] if they look like artifacts
-            email = email.replace(/^[nzcup](?=[a-z])/, '');
-        }
-
-        // 4. Final trim of symbols and stray dots
-        email = email.replace(/^[.\-_]+/, '').replace(/[.,\/_-]+$/, '');
-
-        result.email = email;
+        result.email = email.replace(/[.,\/_-]+$/, '');
     }
 
     // --- PHONE ---
