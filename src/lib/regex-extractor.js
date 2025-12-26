@@ -14,17 +14,17 @@ export function extractWithRegex(text) {
         telefone: "não encontrado"
     };
 
-    // --- EMAIL (The Professional Hunter) ---
+    // --- EMAIL (The Professional Hunter - V3) ---
     const getEmail = () => {
         const patterns = [
             /[a-zA-Z0-9._%+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}/gi,
-            /[a-z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-z0-9-]+\s*\.\s*)+[a-z]{2,}/gi // Capture with spaces
+            /[a-z0-9._%+-]+(?:\s*@\s*|\s*AT\s*)(?:[a-z0-9-]+\s*\.\s*)+[a-z]{2,}/gi
         ];
 
         let candidates = [];
+        const versions = [noSpacesText, cleanText, normalizedText.replace(/[|/\\;:]/g, ' ')];
 
-        // Try to find in all text formats
-        [noSpacesText, cleanText, normalizedText].forEach(t => {
+        versions.forEach(t => {
             patterns.forEach(p => {
                 const matches = t.match(p);
                 if (matches) {
@@ -38,25 +38,30 @@ export function extractWithRegex(text) {
             });
         });
 
-        // Fallback: Radical @ Search
+        // Fallback: Radical @ Search (Total Reconstruction)
         if (candidates.length === 0) {
             let atIdx = 0;
+            // Scan for all @ symbols
             while ((atIdx = cleanText.indexOf('@', atIdx)) !== -1) {
-                const start = Math.max(0, atIdx - 80);
-                const end = Math.min(cleanText.length, atIdx + 80);
+                // Large radius of 100 to catch very long/fragmented emails
+                const start = Math.max(0, atIdx - 100);
+                const end = Math.min(cleanText.length, atIdx + 100);
                 const chunk = cleanText.substring(start, end);
-                // Regex that allows spaces between EVERY character
-                const fragmentMatch = chunk.match(/[a-z0-9._%+-](?:\s*[a-z0-9._%+-])*\s*@\s*[a-z0-9.-](?:\s*[a-z0-9.-])*\s*\.\s*[a-z](?:\s*[a-z])+/i);
+
+                // Super aggressive regex: letters/numbers potentially separated by ANY non-alphanumeric noise
+                const fragmentMatch = chunk.match(/[a-z0-9](?:[^a-z0-9@]*[a-z0-9._%+-])*[^a-z0-9@]*@(?:[^a-z0-9]*[a-z0-9.-])*\s*\.\s*[a-z](?:[^a-z]*[a-z])+/i);
+
                 if (fragmentMatch) {
-                    candidates.push(fragmentMatch[0].toLowerCase().replace(/\s/g, ''));
+                    let extracted = fragmentMatch[0].toLowerCase().replace(/[^a-z0-9@._%+-]/g, '');
+                    if (extracted.includes('.') && extracted.length > 5) {
+                        candidates.push(extracted);
+                    }
                 }
                 atIdx++;
             }
         }
 
         if (candidates.length === 0) return null;
-
-        // Pick best (longest usually has less noise removed prematurely)
         candidates.sort((a, b) => b.length - a.length);
         return candidates[0];
     };
